@@ -25,11 +25,6 @@ text_llm = Gemini(
 
 multimodal_llm = text_llm
 
-# Replace your current text_llm with:
-text_llm = HuggingFaceInferenceAPI(
-    model_name="Qwen/Qwen2.5-72B-Instruct", 
-    token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-)
 
 class EnhancedRAGQueryEngine:
     def __init__(self, task_context: str = ""):
