@@ -450,7 +450,7 @@ class EnhancedGAIAAgent:
             5. ACT: Either request more information or provide the final answer
             
             Available specialist agents:
-            - ResearchAgent: For web search, ArXiv research
+            - ResearchAgent: For ArXiv scientific research and web search with content extraction
             - AnalysisAgent: For document/image analysis using RAG
             - CodeAgent: For calculations and data processing
             
