@@ -463,38 +463,23 @@ class EnhancedGAIAAgent:
             tools=[analysis_tool, research_tool, code_tool]
         )
     
-    def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
+    async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
-        
         context_prompt = f"""
-    GAIA Task ID: {task_id}
-    Question: {question}
-    {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
-    
-    Instructions:
-    1. Analyze this GAIA question using ReAct reasoning
-    2. Use specialist tools ONLY when their specific expertise is needed
-    3. Provide a precise, exact answer in GAIA format
-    
-    Begin your reasoning process:
-    """
-    
+        GAIA Task ID: {task_id}
+        Question: {question}
+        {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
+        Instructions:
+        1. Analyze this GAIA question using ReAct reasoning
+        2. Use specialist tools ONLY when their specific expertise is needed
+        3. Provide a precise, exact answer in GAIA format
+        Begin your reasoning process:
+        """
         try:
-            import asyncio
             from llama_index.core.workflow import Context
-            
-            # Créer le contexte
             ctx = Context(self.coordinator)
-            
-            # Fonction asynchrone pour exécuter l'agent
-            async def run_agent():
-                response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
-                return response
-            
-            # Exécuter de manière asynchrone
-            response = asyncio.run(run_agent())
+            response = await self.coordinator.run(ctx=ctx, input=context_prompt)
             return str(response)
-            
         except Exception as e:
             return f"Error processing question: {str(e)}"
