@@ -38,10 +38,7 @@ class BasicAgent:
             return answer
             
         except Exception as e:
-            print(f"Error using GAIA agent: {str(e)}")
-            fixed_answer = "This is a default answer."
-            print(f"Agent returning fixed answer: {fixed_answer}")
-            return fixed_answer
+            return e
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
