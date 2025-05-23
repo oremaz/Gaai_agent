@@ -17,4 +17,3 @@ sentence-transformers
 Pillow
 python-dotenv
 asyncio
-os-sys
