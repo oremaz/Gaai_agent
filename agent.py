@@ -468,39 +468,26 @@ class EnhancedGAIAAgent:
     
     Instructions:
     1. Analyze this GAIA question using ReAct reasoning
-    2. Use specialist agents ONLY when their specific expertise is needed
+    2. Use specialist tools ONLY when their specific expertise is needed
     3. Provide a precise, exact answer in GAIA format
     
     Begin your reasoning process:
     """
     
         try:
-            # Utiliser la méthode correcte pour ReActAgent
             import asyncio
-            
-            # Créer un contexte pour le workflow
             from llama_index.core.workflow import Context
+            
+            # Créer le contexte
             ctx = Context(self.coordinator)
             
-            # Exécuter le workflow de manière asynchrone
+            # Fonction asynchrone pour exécuter l'agent
             async def run_agent():
                 response = await self.coordinator.run(ctx=ctx, input=context_prompt)
                 return response
             
-            # Exécuter dans une boucle d'événements
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Si on est déjà dans une boucle async (comme dans Gradio)
-                    import nest_asyncio
-                    nest_asyncio.apply()
-                    response = loop.run_until_complete(run_agent())
-                else:
-                    response = asyncio.run(run_agent())
-            except RuntimeError:
-                # Fallback pour les environnements où asyncio pose problème
-                response = asyncio.run(run_agent())
-            
+            # Exécuter de manière asynchrone
+            response = asyncio.run(run_agent())
             return str(response)
             
         except Exception as e:
