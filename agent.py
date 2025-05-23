@@ -462,21 +462,46 @@ class EnhancedGAIAAgent:
         task_id = question_data.get("task_id", "")
         
         context_prompt = f"""
-        GAIA Task ID: {task_id}
-        Question: {question}
-        
-        {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
-        
-        Instructions:
-        1. Analyze this GAIA question using ReAct reasoning
-        2. Use specialist agents ONLY when their specific expertise is needed
-        3. Provide a precise, exact answer in GAIA format
-        
-        Begin your reasoning process:
-        """
-        
+    GAIA Task ID: {task_id}
+    Question: {question}
+    {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
+    
+    Instructions:
+    1. Analyze this GAIA question using ReAct reasoning
+    2. Use specialist agents ONLY when their specific expertise is needed
+    3. Provide a precise, exact answer in GAIA format
+    
+    Begin your reasoning process:
+    """
+    
         try:
-            response = self.coordinator.chat(context_prompt)
+            # Utiliser la méthode correcte pour ReActAgent
+            import asyncio
+            
+            # Créer un contexte pour le workflow
+            from llama_index.core.workflow import Context
+            ctx = Context(self.coordinator)
+            
+            # Exécuter le workflow de manière asynchrone
+            async def run_agent():
+                response = await self.coordinator.run(ctx=ctx, input=context_prompt)
+                return response
+            
+            # Exécuter dans une boucle d'événements
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Si on est déjà dans une boucle async (comme dans Gradio)
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    response = loop.run_until_complete(run_agent())
+                else:
+                    response = asyncio.run(run_agent())
+            except RuntimeError:
+                # Fallback pour les environnements où asyncio pose problème
+                response = asyncio.run(run_agent())
+            
             return str(response)
+            
         except Exception as e:
             return f"Error processing question: {str(e)}"
