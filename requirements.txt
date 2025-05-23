@@ -7,7 +7,7 @@ llama-index-embeddings-huggingface
 llama-index-readers-file
 llama-index-tools-wikipedia
 llama-index-tools-arxiv
-llama-index-postprocessor-sentence-transformers
+llama-index-postprocessor-sbert-rerank
 llama-index-readers-web
 typing-extensions>=4.5.0
 duckduckgo-search
