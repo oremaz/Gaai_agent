@@ -4,7 +4,7 @@ from llama_index.core import VectorStoreIndex, Document
 from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.huggingface import HuggingFaceInferenceAPI
+from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
