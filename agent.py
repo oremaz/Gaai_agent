@@ -400,34 +400,6 @@ code_agent = ReActAgent(
     can_handoff_to=["ResearchAgent", "AnalysisAgent"]
 )
 
-class TaskRouter:
-    def __init__(self):
-        self.agents = {
-            "AnalysisAgent": analysis_agent,
-            "ResearchAgent": research_agent, 
-            "CodeAgent": code_agent
-        }
-    
-    def route_task(self, question_data: Dict[str, Any]) -> str:
-        question = question_data.get("Question", "").lower()
-        has_files = "file_name" in question_data
-        
-        # Routing logic
-        if has_files:
-            if any(keyword in question for keyword in ["image", "chart", "graph", "picture", "pdf", "document", "csv"]):
-                return "AnalysisAgent"
-        
-        if any(keyword in question for keyword in ["calculate", "compute", "math", "number", "formula"]):
-            return "CodeAgent"
-        
-        if any(keyword in question for keyword in ["search", "find", "who", "what", "when", "where", "research"]):
-            return "ResearchAgent"
-        
-        return "AnalysisAgent"  # Default
-    
-    def get_agent(self, agent_name: str):
-        return self.agents.get(agent_name, self.agents["AnalysisAgent"])
-
 class EnhancedGAIAAgent:
     def __init__(self):
         self.router = TaskRouter()
@@ -441,21 +413,22 @@ class EnhancedGAIAAgent:
             
             Your process:
             1. THINK: Analyze the GAIA question and determine what information/analysis is needed
-            2. ACT: Delegate to appropriate specialist agents (Research, Analysis, Code)
-            3. OBSERVE: Review the results from specialist agents
+            2. ACT: Use appropriate tools to gather information and perform analysis
+            3. OBSERVE: Review the results from tools
             4. THINK: Determine if you have enough information for a final answer
-            5. ACT: Either request more information or provide the final answer
+            5. ACT: Either gather more information or provide the final answer
             
-            Available specialist agents:
-            - ResearchAgent: For ArXiv scientific research and web search with content extraction
-            - AnalysisAgent: For document/image analysis using RAG
-            - CodeAgent: For calculations and data processing
+            Available tools:
+            - Enhanced Research Tool: For ArXiv scientific research and web search with content extraction
+            - Enhanced RAG Analysis: For document/image analysis using advanced RAG
+            - Cross-Document Analysis: For multi-document reasoning and synthesis
+            - Python Code Execution: For calculations and data processing
             
             Always provide precise, exact answers as required by GAIA format.
             """,
             llm=text_llm,
             tools=[
-                enhanced_research_tool_func,
+                enhanced_research_tool_func,  # ✅ Fixed - use the correct variable name
                 enhanced_rag_tool,
                 cross_document_tool,
                 code_execution_tool
