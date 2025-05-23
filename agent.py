@@ -16,12 +16,14 @@ from llama_index.tools.arxiv import ArxivToolSpec
 import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
+from llama_index.llms.gemini import Gemini
 
-# LLM definitions
-multimodal_llm = HuggingFaceInferenceAPI(
-    model_name="microsoft/Phi-3.5-vision-instruct",
-    token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
+text_llm = Gemini(
+    model="models/gemini-2.5-flash",
+    api_key=os.environ.get("GOOGLE_API_KEY")
 )
+
+multimodal_llm = text_llm
 
 # Replace your current text_llm with:
 text_llm = HuggingFaceInferenceAPI(
