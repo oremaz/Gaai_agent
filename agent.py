@@ -10,6 +10,12 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
 import os
 from typing import List, Dict, Any
+from llama_index.readers.web import SimpleWebPageReader
+from llama_index.core.tools.ondemand_loader_tool import OnDemandLoaderTool
+from llama_index.tools.arxiv import ArxivToolSpec
+import duckduckgo_search as ddg
+import re
+from llama_index.core.agent.workflow import ReActAgent
 
 # LLM definitions
 multimodal_llm = HuggingFaceInferenceAPI(
@@ -217,12 +223,6 @@ analysis_agent = FunctionAgent(
     can_handoff_to=["CodeAgent", "ResearchAgent"]
 )
 
-from llama_index.readers.web import SimpleWebPageReader
-from llama_index.core.tools.ondemand_loader_tool import OnDemandLoaderTool
-from llama_index.tools.arxiv import ArxivToolSpec
-import duckduckgo_search as ddg
-import re
-from typing import List
 
 class IntelligentSourceRouter:
     def __init__(self):
@@ -349,8 +349,6 @@ research_agent = FunctionAgent(
     can_handoff_to=["AnalysisAgent", "CodeAgent"]
 )
 
-
-from llama_index.core.agent.workflow import ReActAgent
 
 def execute_python_code(code: str) -> str:
     try:
