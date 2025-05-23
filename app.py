@@ -19,21 +19,14 @@ class BasicAgent:
         # Initialize your enhanced GAIA agent
         self.gaia_agent = EnhancedGAIAAgent()
     
-    def __call__(self, question: str) -> str:
-        
-        # Use your GAIA agent instead of fixed answer
+    async def __call__(self, question: str) -> str:
         try:
-            # Create question data structure expected by your GAIA agent
             question_data = {
                 "Question": question,
                 "task_id": "basic_agent_task"
             }
-            
-            # Call your GAIA agent's solve method
-            answer = self.gaia_agent.solve_gaia_question(question_data)
-            
-            return answer
-            
+            answer = await self.gaia_agent.solve_gaia_question(question_data)
+            return str(answer)
         except Exception as e:
             return e, str(e)
 
