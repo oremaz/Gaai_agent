@@ -18,5 +18,4 @@ Pillow
 python-dotenv
 asyncio
 os-sys
-re
 base64
