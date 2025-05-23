@@ -220,7 +220,6 @@ analysis_agent = FunctionAgent(
     """,
     llm=multimodal_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
-    can_handoff_to=["CodeAgent", "ResearchAgent"]
 )
 
 
@@ -346,7 +345,6 @@ research_agent = FunctionAgent(
     """,
     llm=text_llm,
     tools=[enhanced_research_tool_func],
-    can_handoff_to=["AnalysisAgent", "CodeAgent"]
 )
 
 
@@ -397,24 +395,35 @@ code_agent = ReActAgent(
     """,
     llm=text_llm,
     tools=[code_execution_tool],
-    can_handoff_to=["ResearchAgent", "AnalysisAgent"]
 )
 
 # Créer des outils à partir des agents
+def analysis_function(query: str, files=None):
+    ctx = Context(analysis_agent)
+    return analysis_agent.run(query, ctx=ctx)
+
+def research_function(query: str):
+    ctx = Context(research_agent)
+    return research_agent.run(query, ctx=ctx)
+
+def code_function(query: str):
+    ctx = Context(code_agent)
+    return code_agent.run(query, ctx=ctx)
+
 analysis_tool = FunctionTool.from_defaults(
-    fn=lambda query, files=None: analysis_agent.chat(query),
+    fn=analysis_function,
     name="AnalysisAgent",
     description="Advanced multimodal analysis using enhanced RAG"
 )
 
 research_tool = FunctionTool.from_defaults(
-    fn=lambda query: research_agent.chat(query),
+    fn=research_function,
     name="ResearchAgent", 
     description="Research agent for scientific and general research"
 )
 
 code_tool = FunctionTool.from_defaults(
-    fn=lambda query: code_agent.chat(query),
+    fn=code_function,
     name="CodeAgent",
     description="Advanced calculations and data processing"
 )
