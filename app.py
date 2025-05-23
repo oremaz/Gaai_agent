@@ -20,7 +20,6 @@ class BasicAgent:
         self.gaia_agent = EnhancedGAIAAgent()
     
     def __call__(self, question: str) -> str:
-        print(f"Agent received question (first 50 chars): {question[:50]}...")
         
         # Use your GAIA agent instead of fixed answer
         try:
@@ -31,10 +30,8 @@ class BasicAgent:
             }
             
             # Call your GAIA agent's solve method
-            import asyncio
-            answer = asyncio.run(self.gaia_agent.solve_gaia_question(question_data))
+            answer = self.gaia_agent.solve_gaia_question(question_data)
             
-            print(f"Agent returning GAIA answer: {answer[:100]}...")
             return answer
             
         except Exception as e:
