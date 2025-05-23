@@ -1,2 +1,4 @@
 gradio
 requests
+llama_index
+typing
