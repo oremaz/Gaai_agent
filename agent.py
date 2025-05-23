@@ -8,7 +8,6 @@ from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
-from llama_index.llms.huggingface import HuggingFaceInferenceAPI
 import os
 from typing import List, Dict, Any
 
