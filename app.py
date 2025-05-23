@@ -35,7 +35,7 @@ class BasicAgent:
             return answer
             
         except Exception as e:
-            return e
+            return e, str(e)
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
