@@ -402,61 +402,68 @@ code_agent = ReActAgent(
 
 class EnhancedGAIAAgent:
     def __init__(self):
-        self.router = TaskRouter()
+        print("Initializing Enhanced GAIA Agent...")
         
-        # Main ReActAgent that coordinates everything
-        self.main_agent = ReActAgent(
-            name="MainGAIAAgent",
-            description="Main GAIA agent that coordinates research, analysis, and computation to solve complex questions",
+        # Vérification du token HuggingFace
+        hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        if not hf_token:
+            raise ValueError("HUGGINGFACEHUB_API_TOKEN environment variable is required")
+        
+        # Agent coordinateur principal qui utilise les agents spécialisés comme tools
+        self.coordinator = ReActAgent(
+            name="GAIACoordinator",
+            description="Main GAIA coordinator that uses specialist agents as intelligent tools",
             system_prompt="""
-            You are the main GAIA agent coordinator using ReAct reasoning methodology.
+            You are the main GAIA coordinator using ReAct reasoning methodology.
             
             Your process:
-            1. THINK: Analyze the GAIA question and determine what information/analysis is needed
-            2. ACT: Use appropriate tools to gather information and perform analysis
-            3. OBSERVE: Review the results from tools
-            4. THINK: Determine if you have enough information for a final answer
-            5. ACT: Either gather more information or provide the final answer
+            1. THINK: Analyze the GAIA question thoroughly
+               - What type of information is needed?
+               - Are there files to analyze?
+               - Do I need research, analysis, or calculations?
             
-            Available tools:
-            - Enhanced Research Tool: For ArXiv scientific research and web search with content extraction
-            - Enhanced RAG Analysis: For document/image analysis using advanced RAG
-            - Cross-Document Analysis: For multi-document reasoning and synthesis
-            - Python Code Execution: For calculations and data processing
+            2. ACT: Use your specialist agents IF RELEVANT
+               - AnalysisAgent: ONLY for documents, images, files, or multimodal content
+               - ResearchAgent: ONLY for web search, scientific papers, factual information
+               - CodeAgent: ONLY for calculations, data processing, mathematical operations
             
-            Always provide precise, exact answers as required by GAIA format.
+            3. OBSERVE: Review results from specialist agents
+            4. THINK: Determine if you need more information or can provide final answer
+            5. ACT: Either use another agent or provide final precise answer
+            
+            IMPORTANT: Use agents strategically - only when their specific expertise is needed.
+            For simple questions, you can answer directly without using any agents.
+            Always provide EXACT, CONCISE answers as required by GAIA format.
             """,
             llm=text_llm,
             tools=[
-                enhanced_research_tool_func,  # ✅ Fixed - use the correct variable name
-                enhanced_rag_tool,
-                cross_document_tool,
-                code_execution_tool
+                analysis_agent,    # Agent spécialisé comme tool
+                research_agent,    # Agent spécialisé comme tool  
+                code_agent         # Agent spécialisé comme tool
             ]
         )
+        print("Coordinator agent initialized")
     
-    async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
+    def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
         
-        # Prepare comprehensive context
         context_prompt = f"""
         GAIA Task ID: {task_id}
         Question: {question}
         
-        {'Associated files: ' + question_data.get('file_name', '') if 'file_name' in question_data else 'No files provided'}
+        {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
         
         Instructions:
-        1. Analyze this GAIA question carefully using ReAct reasoning
-        2. Determine what information, analysis, or calculations are needed
-        3. Use appropriate tools to gather information and perform analysis
-        4. Synthesize findings into a precise, exact answer
-        5. Ensure your answer format matches GAIA requirements (exact, concise)
+        1. Analyze this GAIA question using ReAct reasoning
+        2. Use specialist agents ONLY when their specific expertise is needed
+        3. Provide a precise, exact answer in GAIA format
         
-        Begin your ReAct reasoning process now.
+        Begin your reasoning process:
         """
         
-        # Execute main agent
-        response = self.main_agent.chat(context_prompt)
-        
-        return str(response)
+        try:
+            response = self.coordinator.chat(context_prompt)
+            return str(response)
+        except Exception as e:
+            return f"Error processing question: {str(e)}"
