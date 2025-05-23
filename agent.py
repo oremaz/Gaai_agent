@@ -400,6 +400,25 @@ code_agent = ReActAgent(
     can_handoff_to=["ResearchAgent", "AnalysisAgent"]
 )
 
+# Créer des outils à partir des agents
+analysis_tool = FunctionTool.from_defaults(
+    fn=lambda query, files=None: analysis_agent.chat(query),
+    name="AnalysisAgent",
+    description="Advanced multimodal analysis using enhanced RAG"
+)
+
+research_tool = FunctionTool.from_defaults(
+    fn=lambda query: research_agent.chat(query),
+    name="ResearchAgent", 
+    description="Research agent for scientific and general research"
+)
+
+code_tool = FunctionTool.from_defaults(
+    fn=lambda query: code_agent.chat(query),
+    name="CodeAgent",
+    description="Advanced calculations and data processing"
+)
+
 class EnhancedGAIAAgent:
     def __init__(self):
         print("Initializing Enhanced GAIA Agent...")
@@ -417,32 +436,26 @@ class EnhancedGAIAAgent:
             You are the main GAIA coordinator using ReAct reasoning methodology.
             
             Your process:
-            1. THINK: Analyze the GAIA question thoroughly
-               - What type of information is needed?
-               - Are there files to analyze?
-               - Do I need research, analysis, or calculations?
-            
-            2. ACT: Use your specialist agents IF RELEVANT
-               - AnalysisAgent: ONLY for documents, images, files, or multimodal content
-               - ResearchAgent: ONLY for web search, scientific papers, factual information
-               - CodeAgent: ONLY for calculations, data processing, mathematical operations
-            
-            3. OBSERVE: Review results from specialist agents
+            1. THINK: Analyze the GAIA question thoroughly            
+            2. ACT: Use your specialist tools IF RELEVANT            
+            3. OBSERVE: Review results from specialist tools 
             4. THINK: Determine if you need more information or can provide final answer
-            5. ACT: Either use another agent or provide final precise answer
+            5. ACT: Either use another tool or provide final precise answer
+            6. FORMAT: Ensure answer is EXACT GAIA format (number only, word only, etc.)
+
             
-            IMPORTANT: Use agents strategically - only when their specific expertise is needed.
-            For simple questions, you can answer directly without using any agents.
-            Always provide EXACT, CONCISE answers as required by GAIA format.
+            IMPORTANT: Use tools strategically - only when their specific expertise is needed.
+            For simple questions, you can answer directly without using any tools.
+            
+            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
+            - For numbers: provide only the number (e.g., "42" or "3.14")
+            - For strings: provide only the exact string (e.g., "Paris" or "Einstein")
+            - For lists: use comma separation (e.g., "apple, banana, orange")
+            - NO explanations, NO additional text, ONLY the precise answer
             """,
             llm=text_llm,
-            tools=[
-                analysis_agent,    # Agent spécialisé comme tool
-                research_agent,    # Agent spécialisé comme tool  
-                code_agent         # Agent spécialisé comme tool
-            ]
+            tools=[analysis_tool, research_tool, code_tool]
         )
-        print("Coordinator agent initialized")
     
     def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
