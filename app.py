@@ -8,16 +8,40 @@ import pandas as pd
 # --- Constants ---
 DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 
+# Import your custom agent from agent.py
+from agent import EnhancedGAIAAgent
+
 # --- Basic Agent Definition ---
 # ----- THIS IS WERE YOU CAN BUILD WHAT YOU WANT ------
 class BasicAgent:
     def __init__(self):
         print("BasicAgent initialized.")
+        # Initialize your enhanced GAIA agent
+        self.gaia_agent = EnhancedGAIAAgent()
+    
     def __call__(self, question: str) -> str:
         print(f"Agent received question (first 50 chars): {question[:50]}...")
-        fixed_answer = "This is a default answer."
-        print(f"Agent returning fixed answer: {fixed_answer}")
-        return fixed_answer
+        
+        # Use your GAIA agent instead of fixed answer
+        try:
+            # Create question data structure expected by your GAIA agent
+            question_data = {
+                "Question": question,
+                "task_id": "basic_agent_task"
+            }
+            
+            # Call your GAIA agent's solve method
+            import asyncio
+            answer = asyncio.run(self.gaia_agent.solve_gaia_question(question_data))
+            
+            print(f"Agent returning GAIA answer: {answer[:100]}...")
+            return answer
+            
+        except Exception as e:
+            print(f"Error using GAIA agent: {str(e)}")
+            fixed_answer = "This is a default answer."
+            print(f"Agent returning fixed answer: {fixed_answer}")
+            return fixed_answer
 
 def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
