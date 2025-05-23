@@ -19,7 +19,7 @@ from llama_index.core.agent.workflow import ReActAgent
 from llama_index.llms.gemini import Gemini
 
 text_llm = Gemini(
-    model="models/gemini-2.5-flash",
+    model="models/gemini-2.5-flash-preview-05-20",
     api_key=os.environ.get("GOOGLE_API_KEY")
 )
 
