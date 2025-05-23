@@ -492,7 +492,7 @@ class EnhancedGAIAAgent:
             
             # Fonction asynchrone pour exécuter l'agent
             async def run_agent():
-                response = await self.coordinator.run(ctx=ctx, input=context_prompt)
+                response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
                 return response
             
             # Exécuter de manière asynchrone
