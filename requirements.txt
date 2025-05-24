@@ -11,7 +11,7 @@ llama-index-readers-file
 llama-index-tools-arxiv
 llama-index-postprocessor-sbert-rerank
 llama-index-readers-web
-llama-index-llms-gemini
+llama-index-llms-openrouter
 
 # ML Stack (ESSENTIELS)
 transformers>=4.37.0,<5.0.0  # ← Essentiel pour HF ecosystem
