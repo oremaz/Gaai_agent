@@ -21,6 +21,7 @@ import wandb
 from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
+from llama_index.core import Settings
 
 proj_llm = OpenRouter(
     model="mistralai/mistral-small-3.1-24b-instruct:free", 
@@ -33,7 +34,6 @@ wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 callback_manager = CallbackManager([wandb_callback, llama_debug])
-
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
