@@ -455,6 +455,7 @@ class EnhancedGAIAAgent:
             from llama_index.core.workflow import Context
             ctx = Context(self.coordinator)
             response = await self.coordinator.run(ctx=ctx, input=context_prompt)
+            print (response)
             return str(response)
         except Exception as e:
             return f"Error processing question: {str(e)}"
