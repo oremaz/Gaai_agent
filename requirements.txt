@@ -23,4 +23,5 @@ sentence-transformers
 duckduckgo-search
 Pillow
 python-dotenv
-wandb == 0.17.5
+wandb
+numpy == 1.26.4
