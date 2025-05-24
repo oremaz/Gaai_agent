@@ -17,10 +17,28 @@ import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
 from llama_index.llms.openrouter import OpenRouter
+import wandb
+from llama_index.callbacks.wandb import WandbCallbackHandler
+from llama_index.callbacks.base import CallbackManager
+from llama_index.callbacks.llama_debug import LlamaDebugHandler
+from llama_index import ServiceContext
+
+wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
+wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
+llama_debug = LlamaDebugHandler(print_trace_on_end=True)
+callback_manager = CallbackManager([wandb_callback, llama_debug])
+
+service_context = ServiceContext.from_defaults(
+    llm=text_llm,
+    embed_model=HuggingFaceEmbedding("BAAI/bge-small-en-v1.5"),
+    callback_manager=callback_manager
+)
+# Puis passe service_context=service_context à tes agents ou query engines
+
 
 text_llm = OpenRouter(
-    model="mistralai/mistral-small-3.1-24b-instruct:free",  # as listed on OpenRouter
-    api_key=os.getenv("OPENROUTER_API_KEY"),  # or pass your key directly
+    model="mistralai/mistral-small-3.1-24b-instruct:free", 
+    api_key=os.getenv("OPENROUTER_API_KEY"),  
 )
 multimodal_llm = text_llm
 
@@ -97,7 +115,8 @@ class EnhancedRAGQueryEngine:
         
         index = VectorStoreIndex(
             nodes,
-            embed_model=self.embed_model
+            embed_model=self.embed_model, 
+            service_context=service_context
         )
         
         return index
@@ -112,7 +131,8 @@ class EnhancedRAGQueryEngine:
         query_engine = RetrieverQueryEngine(
             retriever=retriever,
             node_postprocessors=[self.reranker],
-            llm=multimodal_llm
+            llm=multimodal_llm, 
+            service_context=service_context
         )
         
         return query_engine
@@ -217,7 +237,7 @@ analysis_agent = FunctionAgent(
     llm=multimodal_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
     max_steps=5,
-
+    service_context=service_context  
 )
 
 
@@ -362,7 +382,8 @@ code_agent = ReActAgent(
     """,
     llm=text_llm,
     tools=[code_execution_tool],
-    max_steps = 5
+    max_steps = 5, 
+    service_context=service_context  
 )
 
 # Créer des outils à partir des agents
@@ -421,7 +442,8 @@ class EnhancedGAIAAgent:
             """,
             llm=text_llm,
             tools=[analysis_tool, research_tool, code_tool], 
-            max_steps = 10
+            max_steps = 10, 
+            service_context=service_context  
         )
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
