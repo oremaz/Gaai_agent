@@ -23,24 +23,22 @@ from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import ServiceContext
 
+proj_llm = OpenRouter(
+    model="mistralai/mistral-small-3.1-24b-instruct:free", 
+    api_key=os.getenv("OPENROUTER_API_KEY"),  
+)
+
 wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 callback_manager = CallbackManager([wandb_callback, llama_debug])
 
 service_context = ServiceContext.from_defaults(
-    llm=text_llm,
+    llm=proj_llm,
     embed_model=HuggingFaceEmbedding("BAAI/bge-small-en-v1.5"),
     callback_manager=callback_manager
 )
-# Puis passe service_context=service_context à tes agents ou query engines
 
-
-text_llm = OpenRouter(
-    model="mistralai/mistral-small-3.1-24b-instruct:free", 
-    api_key=os.getenv("OPENROUTER_API_KEY"),  
-)
-multimodal_llm = text_llm
 
 
 class EnhancedRAGQueryEngine:
@@ -131,7 +129,7 @@ class EnhancedRAGQueryEngine:
         query_engine = RetrieverQueryEngine(
             retriever=retriever,
             node_postprocessors=[self.reranker],
-            llm=multimodal_llm, 
+            llm=proj_llm, 
             service_context=service_context
         )
         
@@ -234,7 +232,7 @@ analysis_agent = FunctionAgent(
     
     Always consider the GAIA task context and provide precise, well-sourced answers.
     """,
-    llm=multimodal_llm,
+    llm=proj_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
     max_steps=5,
     service_context=service_context  
@@ -294,7 +292,7 @@ class IntelligentSourceRouter:
         Respond with ONLY "arxiv" or "web_search".
         """
         
-        response = text_llm.complete(intent_prompt)
+        response = proj_llm.complete(intent_prompt)
         selected_source = response.text.strip().lower()
         
         # Execute search and extract content
@@ -380,7 +378,7 @@ code_agent = ReActAgent(
     
     Always show your reasoning process clearly and provide exact answers as required by GAIA.
     """,
-    llm=text_llm,
+    llm=proj_llm,
     tools=[code_execution_tool],
     max_steps = 5, 
     service_context=service_context  
@@ -440,7 +438,7 @@ class EnhancedGAIAAgent:
             - For lists: use comma separation (e.g., "apple, banana, orange")
             - NO explanations, NO additional text, ONLY the precise answer
             """,
-            llm=text_llm,
+            llm=proj_llm,
             tools=[analysis_tool, research_tool, code_tool], 
             max_steps = 10, 
             service_context=service_context  
