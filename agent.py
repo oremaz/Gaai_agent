@@ -27,23 +27,23 @@ proj_llm = OpenRouter(
     api_key=os.getenv("OPENROUTER_API_KEY"),  
 )
 
+embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
+
 wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 callback_manager = CallbackManager([wandb_callback, llama_debug])
 
-from llama_index.core import Settings
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
 
 
-
 class EnhancedRAGQueryEngine:
     def __init__(self, task_context: str = ""):
         self.task_context = task_context
-        self.embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
+        self.embed_model = embed_model
         self.reranker = SentenceTransformerRerank(model="cross-encoder/ms-marco-MiniLM-L-2-v2", top_n=5)
         
         self.readers = {
