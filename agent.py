@@ -16,13 +16,12 @@ from llama_index.tools.arxiv import ArxivToolSpec
 import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
-from llama_index.llms.gemini import Gemini
+from llama_index.llms.openrouter import OpenRouter
 
-text_llm = Gemini(
-    model="models/gemini-2.5-flash-preview-05-20",
-    api_key=os.environ.get("GOOGLE_API_KEY")
+text_llm = OpenRouter(
+    model="mistralai/mistral-small-3.1-24b-instruct:free",  # as listed on OpenRouter
+    api_key=os.getenv("OPENROUTER_API_KEY"),  # or pass your key directly
 )
-
 multimodal_llm = text_llm
 
 
@@ -217,6 +216,8 @@ analysis_agent = FunctionAgent(
     """,
     llm=multimodal_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
+    max_steps=5,
+
 )
 
 
@@ -308,42 +309,11 @@ def enhanced_smart_research_tool(query: str, task_context: str = "", max_results
     full_query = f"{query} {task_context}".strip()
     return intelligent_router.detect_intent_and_route(full_query)
 
-enhanced_research_tool_func = FunctionTool.from_defaults(
+research_tool = FunctionTool.from_defaults(
     fn=enhanced_smart_research_tool,
     name="Enhanced Research Tool",
     description="Intelligent research tool that discriminates between scientific (ArXiv) and general (web) research with deep content extraction"
 )
-
-# Updated research agent
-research_agent = FunctionAgent(
-    name="ResearchAgent",
-    description="Advanced research agent that automatically routes between scientific and general research sources",
-    system_prompt="""
-    You are an advanced research specialist that automatically discriminates between:
-    
-    **Scientific Research** → ArXiv
-    - Academic papers, research studies
-    - Technical algorithms and methods
-    - Scientific experiments and theories
-    
-    **General Research** → Web Search with Content Extraction
-    - Current events and news
-    - General factual information
-    - How-to guides and technical documentation
-    - Weather, locations, biographical info
-    
-    You automatically:
-    1. **Route queries** to the most appropriate source
-    2. **Extract deep content** from web pages (not just snippets)
-    3. **Analyze and synthesize** information comprehensively
-    4. **Provide detailed answers** with source attribution
-    
-    Always focus on extracting the most relevant information for the GAIA task.
-    """,
-    llm=text_llm,
-    tools=[enhanced_research_tool_func],
-)
-
 
 def execute_python_code(code: str) -> str:
     try:
@@ -392,6 +362,7 @@ code_agent = ReActAgent(
     """,
     llm=text_llm,
     tools=[code_execution_tool],
+    max_steps = 5
 )
 
 # Créer des outils à partir des agents
@@ -399,9 +370,6 @@ def analysis_function(query: str, files=None):
     ctx = Context(analysis_agent)
     return analysis_agent.run(query, ctx=ctx)
 
-def research_function(query: str):
-    ctx = Context(research_agent)
-    return research_agent.run(query, ctx=ctx)
 
 def code_function(query: str):
     ctx = Context(code_agent)
@@ -411,12 +379,6 @@ analysis_tool = FunctionTool.from_defaults(
     fn=analysis_function,
     name="AnalysisAgent",
     description="Advanced multimodal analysis using enhanced RAG"
-)
-
-research_tool = FunctionTool.from_defaults(
-    fn=research_function,
-    name="ResearchAgent", 
-    description="Research agent for scientific and general research"
 )
 
 code_tool = FunctionTool.from_defaults(
@@ -445,9 +407,7 @@ class EnhancedGAIAAgent:
             1. THINK: Analyze the GAIA question thoroughly            
             2. ACT: Use your specialist tools IF RELEVANT            
             3. OBSERVE: Review results from specialist tools 
-            4. THINK: Determine if you need more information or can provide final answer
-            5. ACT: Either use another tool or provide final precise answer
-            6. FORMAT: Ensure answer is EXACT GAIA format (number only, word only, etc.)
+            4. REPEAT: Continue until you have the final answer. If you give a final answer, FORMAT: Ensure answer is EXACT GAIA format (number only, word only, etc.)
 
             
             IMPORTANT: Use tools strategically - only when their specific expertise is needed.
@@ -460,7 +420,8 @@ class EnhancedGAIAAgent:
             - NO explanations, NO additional text, ONLY the precise answer
             """,
             llm=text_llm,
-            tools=[analysis_tool, research_tool, code_tool]
+            tools=[analysis_tool, research_tool, code_tool], 
+            max_steps = 10
         )
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
