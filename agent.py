@@ -19,9 +19,9 @@ from llama_index.core.agent.workflow import ReActAgent
 from llama_index.llms.openrouter import OpenRouter
 import wandb
 from llama_index.callbacks.wandb import WandbCallbackHandler
-from llama_index.callbacks.base import CallbackManager
-from llama_index.callbacks.llama_debug import LlamaDebugHandler
-from llama_index import ServiceContext
+from llama_index.core.callbacks.base import CallbackManager
+from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
+from llama_index.core import ServiceContext
 
 wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
