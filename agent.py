@@ -21,7 +21,6 @@ import wandb
 from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
-from llama_index.core import ServiceContext
 
 proj_llm = OpenRouter(
     model="mistralai/mistral-small-3.1-24b-instruct:free", 
@@ -33,11 +32,11 @@ wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agen
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 callback_manager = CallbackManager([wandb_callback, llama_debug])
 
-service_context = ServiceContext.from_defaults(
-    llm=proj_llm,
-    embed_model=HuggingFaceEmbedding("BAAI/bge-small-en-v1.5"),
-    callback_manager=callback_manager
-)
+from llama_index.core import Settings
+
+Settings.llm = llm
+Settings.embed_model = embed_model
+Settings.callback_manager = callback_manager
 
 
 
@@ -113,8 +112,7 @@ class EnhancedRAGQueryEngine:
         
         index = VectorStoreIndex(
             nodes,
-            embed_model=self.embed_model, 
-            service_context=service_context
+            embed_model=self.embed_model
         )
         
         return index
@@ -129,8 +127,7 @@ class EnhancedRAGQueryEngine:
         query_engine = RetrieverQueryEngine(
             retriever=retriever,
             node_postprocessors=[self.reranker],
-            llm=proj_llm, 
-            service_context=service_context
+            llm=proj_llm
         )
         
         return query_engine
@@ -234,8 +231,7 @@ analysis_agent = FunctionAgent(
     """,
     llm=proj_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
-    max_steps=5,
-    service_context=service_context  
+    max_steps=5
 )
 
 
@@ -380,8 +376,7 @@ code_agent = ReActAgent(
     """,
     llm=proj_llm,
     tools=[code_execution_tool],
-    max_steps = 5, 
-    service_context=service_context  
+    max_steps = 5
 )
 
 # Créer des outils à partir des agents
@@ -440,8 +435,7 @@ class EnhancedGAIAAgent:
             """,
             llm=proj_llm,
             tools=[analysis_tool, research_tool, code_tool], 
-            max_steps = 10, 
-            service_context=service_context  
+            max_steps = 10
         )
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
