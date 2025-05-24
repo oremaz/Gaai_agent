@@ -34,7 +34,7 @@ callback_manager = CallbackManager([wandb_callback, llama_debug])
 
 from llama_index.core import Settings
 
-Settings.llm = llm
+Settings.llm = proj_llm
 Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
 
