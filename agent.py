@@ -22,6 +22,10 @@ from llama_index.core import Settings
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
 
+llama_debug = LlamaDebugHandler(print_trace_on_end=True)
+callback_manager = CallbackManager([llama_debug])
+
+
 model_id = "Qwen/Qwen2.5-7B-Instruct" 
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
@@ -409,43 +413,37 @@ description="Execute Python code safely for calculations and data processing"
 # Code Agent as ReActAgent with explicit code generation
 code_agent = ReActAgent(
     name="CodeAgent",
-    description="Advanced calculations, data processing, and final answer synthesis using ReAct reasoning with code generation",
+    description="Advanced calculations, data processing using code generation and execution",
     system_prompt="""
-    You are a coding and reasoning specialist using ReAct methodology.
-
-    For each task, follow this process:
-    1. THINK: Analyze what needs to be calculated or processed
-    2. PLAN: Design the approach and identify what code needs to be written
-    3. GENERATE: Write the appropriate Python code to solve the problem
-    4. ACT: Execute the generated code using the code execution tool
-    5. OBSERVE: Review results and determine if more work is needed
-    6. REPEAT: Continue until you have the final answer
-
-    When generating code:
-    - Write clear, well-commented Python code
-    - Use available libraries (numpy, pandas, matplotlib, etc.)
-    - Store your final result in a variable called 'result'
-    - Handle edge cases and potential errors
-    - Show intermediate steps for complex calculations
-
-    Always show your reasoning process clearly and provide exact answers as required by GAIA.
+    You are a coding specialist. For EVERY computational task:
+    
+    1. THINK: Analyze what calculation/processing is needed
+    2. GENERATE CODE: Write Python code to solve the problem
+    3. EXECUTE: Use the Python Code Execution tool to run your code
+    4. OBSERVE: Check the results
+    5. REPEAT if needed
+    
+    ALWAYS write code for:
+    - Mathematical calculations
+    - Data processing
+    - Numerical analysis
+    - Text processing
+    - Any computational task
     
     Example workflow:
-    THINK: I need to calculate the mean of a dataset
-    PLAN: Load data, use numpy or pandas to calculate mean
-    GENERATE: 
-    ```
-    import numpy as np
-    data = 
-    result = np.mean(data)
-    ```
-    ACT: [Execute the code using the tool]
-    OBSERVE: Check if result is correct and complete
+    Question: "What is 15 * 23 + 7?"
+    
+    Thought: I need to calculate 15 * 23 + 7
+    Action: Python Code Execution
+    Action Input: {"code": "result = 15 * 23 + 7\nprint(f'The answer is: {result}')"}
+    
+    Store your final answer in a variable called 'result'.
     """,
     llm=proj_llm,
     tools=[code_execution_tool],
-    max_steps=5, 
-    verbose = True
+    max_steps=5,
+    verbose=True, 
+    callback_manager=callback_manager,
 )
 
 def analysis_function(query: str, files=None):
@@ -485,32 +483,24 @@ code_tool = FunctionTool.from_defaults(
     name="CodeAgent",
     description="""Advanced computational specialist using ReAct reasoning. Use this tool at least when you need:
     
-    **Mathematical Calculations:**
-    - Complex arithmetic, algebra, statistics, probability
-    - Unit conversions, percentage calculations
-    - Financial calculations (interest, loans, investments)
-    - Scientific calculations (physics, chemistry formulas)
+    **Core Capabilities:**
+    - **Autonomous Code Generation**: Writes Python code from scratch to solve computational problems
+    - **Multi-step Problem Solving**: Breaks complex tasks into manageable coding steps
+    - **Self-debugging**: Identifies and fixes errors through iterative refinement
+    - **Library Integration**: Leverages numpy, pandas, matplotlib, scipy, sklearn, and other scientific libraries
+    - **Result Verification**: Validates outputs and adjusts approach as needed
     
-    **Data Processing:**
-    - Parsing and analyzing numerical data
-    - String manipulation and text processing
-    - Date/time calculations and conversions
-    - List operations, sorting, filtering
+    **When to Use:**
+    - Mathematical calculations requiring step-by-step computation
+    - Data analysis and statistical processing
+    - Algorithm implementation and optimization
+    - Numerical simulations and modeling
+    - Text processing and pattern analysis
+    - Complex logical operations requiring code verification
     
-    **Logical Operations:**
-    - Step-by-step problem solving with code
-    - Verification of calculations or logic
-    - Pattern analysis and data validation
-    - Algorithm implementation for specific problems
+    **Unique Advantage**: Unlike simple calculation tools, this agent can autonomously write, execute, debug, and refine code until achieving the correct solution, making it ideal for complex computational tasks that require adaptive problem-solving.
     
-    **Programming Tasks:**
-    - Code generation for specific computational needs
-    - Data structure manipulation
-    - Regular expression operations
-    
-    **When to use:** Questions requiring precise calculations, data manipulation, logical reasoning with code verification, mathematical problem solving, or when you need to process numerical/textual data programmatically.
-    
-    **Input format:** Describe the calculation or processing task clearly, including any specific requirements or constraints."""
+    **Input Format**: Describe the computational task clearly, including any data, constraints, or specific requirements."""
 )
 
 class EnhancedGAIAAgent:
@@ -521,7 +511,7 @@ class EnhancedGAIAAgent:
         hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
         if not hf_token:
             raise ValueError("HUGGINGFACEHUB_API_TOKEN environment variable is required")
-        
+
         # Agent coordinateur principal qui utilise les agents spécialisés comme tools
         self.coordinator = ReActAgent(
             name="GAIACoordinator",
@@ -546,7 +536,8 @@ class EnhancedGAIAAgent:
             llm=proj_llm,
             tools=[analysis_tool, research_tool, code_tool], 
             max_steps = 10, 
-            verbose = True
+            verbose = True, 
+            callback_manager=callback_manager,
         )
 
     async def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
@@ -602,6 +593,7 @@ class EnhancedGAIAAgent:
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
+        print("data",question_data)
         
         context_prompt = f"""
         GAIA Task ID: {task_id}
