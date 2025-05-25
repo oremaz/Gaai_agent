@@ -61,6 +61,7 @@ async def run_and_submit_all( profile= None):
         return f"Error initializing agent: {e}", None
     # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
     #agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
+    agent_code = "Running on Kaggle"
     print(agent_code)
 
     # 2. Fetch Questions
