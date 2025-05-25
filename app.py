@@ -29,9 +29,9 @@ class BasicAgent:
             answer = await self.gaia_agent.solve_gaia_question(question_data)
             return str(answer)
         except Exception as e:
-            return e, str(e)
+            return e
 
-def run_and_submit_all( profile: gr.OAuthProfile | None):
+async def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
     and displays the results.
@@ -92,7 +92,7 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
             print(f"Skipping item with missing task_id or question: {item}")
             continue
         try:
-            submitted_answer = agent(question_text)
+            submitted_answer = await agent(question_text)
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
             results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
         except Exception as e:
