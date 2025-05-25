@@ -242,9 +242,9 @@ class IntelligentSourceRouter:
     def __init__(self):
         # Initialize ArXiv and DuckDuckGo as LlamaIndex tools
         self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
-        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
-    def detect_intent_and_route(self, query: str) -> str:
+    def detect_intent_and_extract_content(self, query: str, max_results = 3) -> str:
         # Use your LLM to decide between arxiv and web_search
         intent_prompt = f"""
         Analyze this query and determine if it's scientific research or general information:
@@ -260,10 +260,10 @@ class IntelligentSourceRouter:
         results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
         try:
             if selected_source == 'arxiv':
-                result = self.arxiv_tool.call(query=query, max_results=3)
+                result = self.arxiv_tool.call(query=query)
                 results.append(f"**ArXiv Research:**\n{result}")
             else:
-                result = self.duckduckgo_tool.call(query=query, max_results=5)
+                result = self.duckduckgo_tool.call(query=query, max_results=max_results)
                 # Format results if needed
                 if isinstance(result, list):
                     formatted = []
@@ -277,55 +277,14 @@ class IntelligentSourceRouter:
             results.append(f"**Search failed**: {str(e)}")
         return "\n\n".join(results)
 
-class IntelligentSourceRouter:
-    def __init__(self):
-        # Initialize Arxiv and DuckDuckGo tools
-        self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
-        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
-
-    def detect_intent_and_extract_content(self, query: str, max_results: int = 3) -> str:
-        # Use your LLM to decide between arxiv and web_search
-        intent_prompt = f"""
-        Analyze this query and determine if it's scientific research or general information:
-        Query: "{query}"
-        Choose ONE source:
-        - arxiv: For scientific research, academic papers, technical studies, algorithms, experiments
-        - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
-        Respond with ONLY "arxiv" or "web_search".
-        """
-        response = proj_llm.complete(intent_prompt)
-        selected_source = response.text.strip().lower()
-
-        results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
-        try:
-            if selected_source == 'arxiv':
-                # Extract abstracts and paper summaries (deep content)
-                arxiv_results = self.arxiv_tool.call(query=query, max_results=max_results)
-                results.append(f"**Extracted ArXiv Content:**\n{arxiv_results}")
-            else:
-                # DuckDuckGo returns a list of dicts with 'href', 'title', 'body'
-                web_results = self.duckduckgo_tool.call(query=query, max_results=max_results)
-                if isinstance(web_results, list):
-                    formatted = []
-                    for i, r in enumerate(web_results, 1):
-                        formatted.append(
-                            f"{i}. **{r.get('title', '')}**\n   URL: {r.get('href', '')}\n   {r.get('body', '')}"
-                        )
-                    web_content = "\n".join(formatted)
-                else:
-                    web_content = str(web_results)
-                results.append(f"**Extracted Web Content:**\n{web_content}")
-        except Exception as e:
-            results.append(f"**Extraction failed**: {str(e)}")
-        return "\n\n".join(results)
 
 # Initialize router
 intelligent_router = IntelligentSourceRouter()
 
 # Create enhanced research tool
-def enhanced_smart_research_tool(query: str, task_context: str = "", max_results: int = 3) -> str:
+def enhanced_smart_research_tool(query: str, task_context: str = "") -> str:
     full_query = f"{query} {task_context}".strip()
-    return intelligent_router.detect_intent_and_extract_content(full_query, max_results=max_results)
+    return intelligent_router.detect_intent_and_extract_content(full_query)
 
 research_tool = FunctionTool.from_defaults(
     fn=enhanced_smart_research_tool,
