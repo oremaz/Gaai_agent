@@ -9,6 +9,7 @@ llama-index-llms-huggingface
 llama-index-embeddings-huggingface
 llama-index-readers-file
 llama-index-tools-arxiv
+llama-index-tools-duckduckgo
 llama-index-postprocessor-sbert-rerank
 llama-index-readers-web
 llama-index-callbacks-wandb
@@ -19,9 +20,7 @@ torch
 sentence-transformers
 
 # Utilities
-duckduckgo-search
 Pillow
 python-dotenv
 wandb
 numpy == 1.26.4
-vllm
