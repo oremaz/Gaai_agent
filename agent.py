@@ -478,7 +478,6 @@ analysis_tool = FunctionTool.from_defaults(
     **Input format:** Provide the query and mention any relevant files or context."""
 )
 
-
 code_tool = FunctionTool.from_defaults(
     fn=code_function,
     name="CodeAgent",
@@ -516,29 +515,42 @@ class EnhancedGAIAAgent:
         # Agent coordinateur principal qui utilise les agents spécialisés comme tools
         self.coordinator = ReActAgent(
             name="GAIACoordinator",
-            description="Main GAIA coordinator that uses specialist agents as intelligent tools",
+            description="Main GAIA coordinator that uses specialized capabilities as intelligent tools",
             system_prompt="""
             You are the main GAIA coordinator using ReAct reasoning methodology.
+                        
+            You have access to THREE specialist tools:
             
-            Your process:
-            1. THINK: Analyze the GAIA question thoroughly            
-            2. ACT: Use your specialist tools IF RELEVANT            
-            3. OBSERVE: Review results from specialist tools 
-            4. REPEAT: Continue until you have the final answer. 
+            **1. AnalysisAgent** - Advanced multimodal document analysis specialist
+            - Use for: PDF, Word, CSV, image file analysis
+            - Capabilities: Extract data from tables/charts, cross-reference documents, semantic search
+            - When to use: Questions with file attachments, document analysis, data extraction
+            
+            **2. Research Tool** - Intelligent research specialist with automatic routing
+            - Use for: External knowledge, current events, scientific papers
+            - Capabilities: Auto-routes between ArXiv (scientific) and web search (general), extracts full content
+            - When to use: Questions requiring external knowledge, factual verification, current information
+            
+            **3. CodeAgent** - Advanced computational specialist using ReAct reasoning
+            - Use for: Mathematical calculations, data processing, logical operations
+            - Capabilities: Generates and executes Python code, handles complex computations, step-by-step problem solving
+            - When to use: Precise calculations, data manipulation, mathematical problem solving
+            
+            IMPORTANT: Use tools strategically - only when their specific expertise is needed.
+            For simple questions, you can answer directly without using any tools.
             
             CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
-            
-            ABSOLUTE RULES:
-            - NO explanations, NO additional text, NO units unless specifically requested
-            - NO phrases like "The answer is", "Based on the analysis", "According to"
-            - NO brackets, quotes, or formatting around the answer
-            - NO trailing periods or punctuation unless part of the answer
-            - If you cannot determine the answer, respond ONLY with: Unable to determine""",
+            - For numbers: provide only the number (e.g., "42" or "3.14")
+            - For strings: provide only the exact string (e.g., "Paris" or "Einstein")
+            - For lists: use comma separation (e.g., "apple, banana, orange")
+            - NO explanations, NO additional text, ONLY the precise answer
+            """,
             llm=proj_llm,
             tools=[analysis_tool, research_tool, code_tool], 
-            max_steps = 10, 
+            max_steps=10, 
             verbose = True, 
             callback_manager=callback_manager,
+
         )
 
     async def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
