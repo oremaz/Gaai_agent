@@ -549,7 +549,7 @@ class EnhancedGAIAAgent:
             verbose = True
         )
 
-    def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
+    async def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
         """
         Post-process the agent response to extract the exact GAIA format answer
         """
@@ -617,7 +617,7 @@ class EnhancedGAIAAgent:
             raw_response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
             
             # Post-process to extract exact GAIA format
-            formatted_answer = self.format_gaia_answer(str(raw_response), question)
+            formatted_answer = await self.format_gaia_answer(str(raw_response), question)
             
             print(f"Raw response: {raw_response}")
             print(f"Formatted answer: {formatted_answer}")
