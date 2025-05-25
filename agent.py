@@ -33,7 +33,7 @@ proj_llm = HuggingFaceLLM(
     tokenizer_name=model_id,
     device_map="auto",           # will use GPU if available
     model_kwargs={"torch_dtype": "auto"},
-    generate_kwargs={"temperature": 0, "top_p": 0}
+    generate_kwargs={"temperature": 0.1, "top_p": 0.3}  # More focused
 )
 
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
