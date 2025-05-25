@@ -349,95 +349,95 @@ research_tool = FunctionTool.from_defaults(
 
 def execute_python_code(code: str) -> str:
     try:
-    safe_globals = {
-        "__builtins__": {
-            "len": len, "str": str, "int": int, "float": float,
-            "list": list, "dict": dict, "sum": sum, "max": max, "min": min,
-            "round": round, "abs": abs, "sorted": sorted, "enumerate": enumerate,
-            "range": range, "zip": zip, "map": map, "filter": filter,
-            "any": any, "all": all, "type": type, "isinstance": isinstance,
-            "print": print, "open": open, "bool": bool, "set": set, "tuple": tuple
-        },
-        # Core Python modules
-        "math": __import__("math"),
-        "datetime": __import__("datetime"),
-        "re": __import__("re"),
-        "os": __import__("os"),
-        "sys": __import__("sys"),
-        "json": __import__("json"),
-        "csv": __import__("csv"),
-        "random": __import__("random"),
-        "itertools": __import__("itertools"),
-        "collections": __import__("collections"),
-        "functools": __import__("functools"),
+        safe_globals = {
+            "__builtins__": {
+                "len": len, "str": str, "int": int, "float": float,
+                "list": list, "dict": dict, "sum": sum, "max": max, "min": min,
+                "round": round, "abs": abs, "sorted": sorted, "enumerate": enumerate,
+                "range": range, "zip": zip, "map": map, "filter": filter,
+                "any": any, "all": all, "type": type, "isinstance": isinstance,
+                "print": print, "open": open, "bool": bool, "set": set, "tuple": tuple
+            },
+            # Core Python modules
+            "math": __import__("math"),
+            "datetime": __import__("datetime"),
+            "re": __import__("re"),
+            "os": __import__("os"),
+            "sys": __import__("sys"),
+            "json": __import__("json"),
+            "csv": __import__("csv"),
+            "random": __import__("random"),
+            "itertools": __import__("itertools"),
+            "collections": __import__("collections"),
+            "functools": __import__("functools"),
+            
+            # Data Science and Numerical Computing
+            "numpy": __import__("numpy"),
+            "np": __import__("numpy"),
+            "pandas": __import__("pandas"),
+            "pd": __import__("pandas"),
+            "scipy": __import__("scipy"),
+            
+            # Visualization
+            "matplotlib": __import__("matplotlib"),
+            "plt": __import__("matplotlib.pyplot"),
+            "seaborn": __import__("seaborn"),
+            "sns": __import__("seaborn"),
+            "plotly": __import__("plotly"),
+            
+            # Machine Learning
+            "sklearn": __import__("sklearn"),
+            "xgboost": __import__("xgboost"),
+            "lightgbm": __import__("lightgbm"),
+            
+            # Statistics
+            "statistics": __import__("statistics"),
+            "statsmodels": __import__("statsmodels"),
+            
+            # Image Processing
+            "PIL": __import__("PIL"),
+            "cv2": __import__("cv2"),
+            "skimage": __import__("skimage"),
+            
+            # Network and Web
+            "requests": __import__("requests"),
+            "urllib": __import__("urllib"),
+            
+            # Text Processing
+            "nltk": __import__("nltk"),
+            "spacy": __import__("spacy"),
+            
+            # Time Series
+            "pytz": __import__("pytz"),
+            
+            # Utilities
+            "tqdm": __import__("tqdm"),
+            "pickle": __import__("pickle"),
+            "gzip": __import__("gzip"),
+            "base64": __import__("base64"),
+            "hashlib": __import__("hashlib"),
+            "uuid": __import__("uuid"),
+            
+            # Scientific Computing
+            "sympy": __import__("sympy"),
+            "networkx": __import__("networkx"),
+            
+            # Database
+            "sqlite3": __import__("sqlite3"),
+            
+            # Parallel Processing
+            "multiprocessing": __import__("multiprocessing"),
+            "threading": __import__("threading"),
+            "concurrent": __import__("concurrent"),
+        }
+            
+            exec_locals = {}
+            exec(code, safe_globals, exec_locals)
         
-        # Data Science and Numerical Computing
-        "numpy": __import__("numpy"),
-        "np": __import__("numpy"),
-        "pandas": __import__("pandas"),
-        "pd": __import__("pandas"),
-        "scipy": __import__("scipy"),
-        
-        # Visualization
-        "matplotlib": __import__("matplotlib"),
-        "plt": __import__("matplotlib.pyplot"),
-        "seaborn": __import__("seaborn"),
-        "sns": __import__("seaborn"),
-        "plotly": __import__("plotly"),
-        
-        # Machine Learning
-        "sklearn": __import__("sklearn"),
-        "xgboost": __import__("xgboost"),
-        "lightgbm": __import__("lightgbm"),
-        
-        # Statistics
-        "statistics": __import__("statistics"),
-        "statsmodels": __import__("statsmodels"),
-        
-        # Image Processing
-        "PIL": __import__("PIL"),
-        "cv2": __import__("cv2"),
-        "skimage": __import__("skimage"),
-        
-        # Network and Web
-        "requests": __import__("requests"),
-        "urllib": __import__("urllib"),
-        
-        # Text Processing
-        "nltk": __import__("nltk"),
-        "spacy": __import__("spacy"),
-        
-        # Time Series
-        "pytz": __import__("pytz"),
-        
-        # Utilities
-        "tqdm": __import__("tqdm"),
-        "pickle": __import__("pickle"),
-        "gzip": __import__("gzip"),
-        "base64": __import__("base64"),
-        "hashlib": __import__("hashlib"),
-        "uuid": __import__("uuid"),
-        
-        # Scientific Computing
-        "sympy": __import__("sympy"),
-        "networkx": __import__("networkx"),
-        
-        # Database
-        "sqlite3": __import__("sqlite3"),
-        
-        # Parallel Processing
-        "multiprocessing": __import__("multiprocessing"),
-        "threading": __import__("threading"),
-        "concurrent": __import__("concurrent"),
-    }
-        
-        exec_locals = {}
-        exec(code, safe_globals, exec_locals)
-    
-        if 'result' in exec_locals:
-            return str(exec_locals['result'])
-        else:
-            return "Code executed successfully"
+            if 'result' in exec_locals:
+                return str(exec_locals['result'])
+            else:
+                return "Code executed successfully"
     
     except Exception as e:
         return f"Code execution failed: {str(e)}"
