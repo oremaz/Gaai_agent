@@ -36,8 +36,6 @@ model = AutoModelForCausalLM.from_pretrained(
 proj_llm = HuggingFaceLLM(
     model=model,
     tokenizer=tokenizer,
-    context_window=3900,       # adjust as needed
-    max_new_tokens=512,        # adjust as needed
     device_map="auto",         # ensures multi-GPU support
     generate_kwargs={"temperature": 0.7, "top_p": 0.95}
 )
