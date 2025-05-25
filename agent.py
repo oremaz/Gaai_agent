@@ -249,7 +249,7 @@ class IntelligentSourceRouter:
         self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
         self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
-    def detect_intent_and_extract_content(self, query: str, max_results = 3) -> str:
+    def detect_intent_and_extract_content(self, query: str, max_results = 1) -> str:
         # Use your LLM to decide between arxiv and web_search
         intent_prompt = f"""
         Analyze this query and determine if it's scientific research or general information:
@@ -278,10 +278,10 @@ class IntelligentSourceRouter:
                         )
                     result = "\n".join(formatted)
                 results.append(f"**Web Search Results:**\n{result}")
+                print (results)
         except Exception as e:
             results.append(f"**Search failed**: {str(e)}")
         return "\n\n".join(results)
-
 
 # Initialize router
 intelligent_router = IntelligentSourceRouter()
