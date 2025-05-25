@@ -24,6 +24,11 @@ from llama_index.core import Settings
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
 
+import torch
+
+torch.cuda.set_per_process_memory_fraction(0.7, 0)  # GPU 0: 70%
+torch.cuda.set_per_process_memory_fraction(0.7, 1)  # GPU 1: 70%
+
 model_id = "Qwen/Qwen2.5-14B-Instruct" 
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
