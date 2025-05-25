@@ -533,38 +533,9 @@ class EnhancedGAIAAgent:
             1. THINK: Analyze the GAIA question thoroughly            
             2. ACT: Use your specialist tools IF RELEVANT            
             3. OBSERVE: Review results from specialist tools 
-            4. REPEAT: Continue until you have the final answer. CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
+            4. REPEAT: Continue until you have the final answer. 
             
-            CRITICAL ANSWER FORMATTING EXAMPLES:
-            **Numbers (no commas, no units unless specified):**
-            Question: "How many research papers were published by the university between 2010 and 2020?"
-            CORRECT: 156
-            WRONG: "The answer is 156 papers" or "156 papers" or "one hundred fifty-six" or " 156 research papers were published by the university between 2010 and 2020"
-            
-            **Strings (exact words, no articles, no explanations):**
-            Question: "What is the last name of the software engineer mentioned in the report?"
-            CORRECT: Martinez
-            WRONG: "The last name is Martinez" or "Dr. Martinez" or "martinez"
-            
-            **Lists (comma-separated with spaces, alphabetized when requested):**
-            Question: "List the programming languages from this job description, alphabetized:"
-            CORRECT: C++, Java, JavaScript, Python, Ruby, TypeScript
-            WRONG: "C++,Java,JavaScript" or "1. C++ 2. Java" or "[C++, Java]"
-            
-            **First/Last names only:**
-            Question: "Give only the first name of the developer who created the framework."
-            CORRECT: Sarah
-            WRONG: "Sarah Johnson" or "The first name is Sarah"
-            
-            **Country codes:**
-            Question: "Give the ISO country code as your answer."
-            CORRECT: FRA
-            WRONG: "The ISO code is FRA" or "France (FRA)"
-            
-            **Technical notation:**
-            Question: "Provide your response in standard notation."
-            CORRECT: 3.14e+8
-            WRONG: "The value is 3.14e+8" or "314 million"
+            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
             
             ABSOLUTE RULES:
             - NO explanations, NO additional text, NO units unless specifically requested
@@ -577,25 +548,81 @@ class EnhancedGAIAAgent:
             max_steps = 10, 
             verbose = True
         )
+
+    def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
+    """
+    Post-process the agent response to extract the exact GAIA format answer
+    """
+    format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
+
+Examples:
+
+Question: "How many research papers were published by the university between 2010 and 2020?"
+Response: "Based on my analysis of the data, I found that the university published 156 research papers between 2010 and 2020."
+Answer: 156
+
+Question: "What is the last name of the software engineer mentioned in the report?"
+Response: "After reviewing the document, the software engineer mentioned is Dr. Martinez who developed the system."
+Answer: Martinez
+
+Question: "List the programming languages from this job description, alphabetized:"
+Response: "The job description mentions several programming languages including Python, Java, C++, and JavaScript. When alphabetized, these are: C++, Java, JavaScript, Python"
+Answer: C++, Java, JavaScript, Python
+
+Question: "Give only the first name of the developer who created the framework."
+Response: "The framework was created by Sarah Johnson, a senior developer at the company."
+Answer: Sarah
+
+Question: "Give the ISO country code as your answer."
+Response: "The country in question is France, which has the ISO code FRA."
+Answer: FRA
+
+Question: "Provide your response in standard notation."
+Response: "The calculated value is 314 million, which in standard notation is 3.14e+8"
+Answer: 3.14e+8
+
+Now extract the exact answer:
+
+Question: {original_question}
+Response: {raw_response}
+Answer:"""
+
+    try:
+        # Use a simple, fast LLM for formatting
+        formatting_response = proj_llm.complete(format_prompt)
+        answer = str(formatting_response).strip()
+        
+        return answer
+        
+    except Exception as e:
+        print(f"Error in formatting: {e}")
+        return self._extract_fallback_answer(raw_response)
+
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
+        
         context_prompt = f"""
         GAIA Task ID: {task_id}
         Question: {question}
         {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
-        Instructions:
-        1. Analyze this GAIA question using ReAct reasoning
-        2. Use specialist tools ONLY when their specific expertise is needed
-        3. Provide a precise, exact answer in GAIA format
-        Begin your reasoning process:
+        
+        Analyze this question and provide your reasoning and final answer.
         """
+        
         try:
             from llama_index.core.workflow import Context
             ctx = Context(self.coordinator)
-            response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
-            print (response)
-            return str(response)
+            raw_response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
+            
+            # Post-process to extract exact GAIA format
+            formatted_answer = self.format_gaia_answer(str(raw_response), question)
+            
+            print(f"Raw response: {raw_response}")
+            print(f"Formatted answer: {formatted_answer}")
+            
+            return formatted_answer
+            
         except Exception as e:
             return f"Error processing question: {str(e)}"
