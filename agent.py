@@ -533,14 +533,13 @@ class EnhancedGAIAAgent:
             1. THINK: Analyze the GAIA question thoroughly            
             2. ACT: Use your specialist tools IF RELEVANT            
             3. OBSERVE: Review results from specialist tools 
-            4. REPEAT: Continue until you have the final answer.
+            4. REPEAT: Continue until you have the final answer. CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
             
-            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
             CRITICAL ANSWER FORMATTING EXAMPLES:
             **Numbers (no commas, no units unless specified):**
             Question: "How many research papers were published by the university between 2010 and 2020?"
             CORRECT: 156
-            WRONG: "The answer is 156 papers" or "156 papers" or "one hundred fifty-six"
+            WRONG: "The answer is 156 papers" or "156 papers" or "one hundred fifty-six" or " 156 research papers were published by the university between 2010 and 2020"
             
             **Strings (exact words, no articles, no explanations):**
             Question: "What is the last name of the software engineer mentioned in the report?"
