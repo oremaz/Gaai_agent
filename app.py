@@ -46,7 +46,7 @@ async def run_and_submit_all( profile= None):
         #print("User not logged in.")
         #return "Please Login to Hugging Face with the button.", None
 
-    username = "kaggle_user"
+    username = "oremaz"
     print(f"Running as: {username}")
 
     api_url = DEFAULT_API_URL
