@@ -18,13 +18,20 @@ from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
+from llama_index.callbacks.wandb import WandbCallbackHandler
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
 import requests
 
+wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-callback_manager = CallbackManager([llama_debug])
+
+# Comprehensive callback manager
+callback_manager = CallbackManager([
+    wandb_callback,     # For W&B tracking
+    llama_debug        # For general debugging
+])
 
 
 model_id = "Qwen/Qwen2.5-7B-Instruct" 
