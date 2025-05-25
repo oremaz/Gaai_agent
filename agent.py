@@ -431,13 +431,13 @@ def execute_python_code(code: str) -> str:
             "concurrent": __import__("concurrent"),
         }
             
-            exec_locals = {}
-            exec(code, safe_globals, exec_locals)
-        
-            if 'result' in exec_locals:
-                return str(exec_locals['result'])
-            else:
-                return "Code executed successfully"
+        exec_locals = {}
+        exec(code, safe_globals, exec_locals)
+    
+        if 'result' in exec_locals:
+            return str(exec_locals['result'])
+        else:
+            return "Code executed successfully"
     
     except Exception as e:
         return f"Code execution failed: {str(e)}"
