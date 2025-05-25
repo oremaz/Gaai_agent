@@ -531,17 +531,17 @@ class EnhancedGAIAAgent:
                         
             You have access to THREE specialist tools:
             
-            **1. AnalysisAgent** - Advanced multimodal document analysis specialist
+            **1. analysis_tool** - Advanced multimodal document analysis specialist
             - Use for: PDF, Word, CSV, image file analysis
             - Capabilities: Extract data from tables/charts, cross-reference documents, semantic search
             - When to use: Questions with file attachments, document analysis, data extraction
             
-            **2. Research Tool** - Intelligent research specialist with automatic routing
+            **2. research_tool** - Intelligent research specialist with automatic routing
             - Use for: External knowledge, current events, scientific papers
             - Capabilities: Auto-routes between ArXiv (scientific) and web search (general), extracts full content
             - When to use: Questions requiring external knowledge, factual verification, current information
             
-            **3. CodeAgent** - Advanced computational specialist using ReAct reasoning
+            **3. code_tool** - Advanced computational specialist using ReAct reasoning
             - Use for: Mathematical calculations, data processing, logical operations
             - Capabilities: Generates and executes Python code, handles complex computations, step-by-step problem solving
             - When to use: Precise calculations, data manipulation, mathematical problem solving
@@ -631,37 +631,51 @@ class EnhancedGAIAAgent:
             return None
 
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
-        question = question_data.get("Question", "")
-        task_id = question_data.get("task_id", "")
-
-        try:
-            file_path = self.download_gaia_file(task_id)
-        except FileNotFoundError as e:
-            print(f"File not found for task {task_id}: {e}")
-            file_path = None
-        except Exception as e:
-            print(f"Unexpected error downloading file for task {task_id}: {e}")
-            file_path = None
-
-        context_prompt = f"""
-        GAIA Task ID: {task_id}
-        Question: {question}
-        {'File downloaded: ' + file_path if file_path else 'No files referenced'}
-        
-        Analyze this question and provide your reasoning and final answer.
-        """
-        
-        try:
-            from llama_index.core.workflow import Context
-            ctx = Context(self.coordinator)
-            raw_response = await self.coordinator.run(ctx=ctx, user_msg=context_prompt)
+            question = question_data.get("Question", "")
+            task_id = question_data.get("task_id", "")
+    
+            # Try to download file
+            try:
+                file_path = self.download_gaia_file(task_id)
+            except Exception as e:
+                print(f"Failed to download file for task {task_id}: {e}")
+                file_path = None
+    
+            context_prompt = f"""
+            GAIA Task ID: {task_id}
+            Question: {question}
+            {'File downloaded: ' + file_path if file_path else 'No additional files referenced'}
             
-            # Post-process to extract exact GAIA format
-            formatted_answer = await self.format_gaia_answer(str(raw_response), question)
+            Additionnal instructions to system prompt :
+            1. If a file is available, use the analysis_tool to process it
+            2. If a link is available, use the research_tool to extract the content in it
+            """
             
-            print(f"Formatted answer: {formatted_answer}")
-            
-            return formatted_answer
-            
-        except Exception as e:
-            return f"Error processing question: {str(e)}"
+            try:
+                ctx = Context(self.coordinator)
+                
+                # Use streaming to see step-by-step reasoning
+                print("=== AGENT REASONING STEPS ===")
+                handler = self.coordinator.run(ctx=ctx, user_msg=context_prompt)
+                
+                full_response = ""
+                async for event in handler.stream_events():
+                    if isinstance(event, AgentStream):
+                        print(event.delta, end="", flush=True)
+                        full_response += event.delta
+                
+                # Get the final response
+                raw_response = await handler
+                print("\n=== END REASONING ===")
+                
+                # Post-process to extract exact GAIA format
+                formatted_answer = await self.format_gaia_answer(str(raw_response), question)
+                
+                print(f"Formatted answer: {formatted_answer}")
+                
+                return formatted_answer
+                
+            except Exception as e:
+                error_msg = f"Error processing question: {str(e)}"
+                print(error_msg)
+                return error_msg
