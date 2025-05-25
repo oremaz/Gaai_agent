@@ -15,7 +15,6 @@ from llama_index.tools.arxiv import ArxivToolSpec
 import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
-from llama_index.llms.openrouter import OpenRouter
 import wandb
 from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
@@ -23,21 +22,13 @@ from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from llama_index.llms.huggingface import HuggingFaceLLM
+from llama_index.llms.vllm import Vllm
 
-model_id = "mistralai/Pixtral-12B-Base-2409"  # or "mistralai/Mistral-7B-Instruct-v0.2"
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    torch_dtype="auto",        # or torch.float16 for FP16
-    device_map="auto"          # will use all available GPUs
-)
-
-proj_llm = HuggingFaceLLM(
-    model=model,
-    tokenizer=tokenizer,
-    device_map="auto",         # ensures multi-GPU support
-    generate_kwargs={"temperature": 0.7, "top_p": 0.95}
+llm = Vllm(
+    model="mistralai/Pixtral-12B-2409",
+    tensor_parallel_size=2,  # For two GPUs
+    max_new_tokens=512,
+    vllm_kwargs={"swap_space": 1, "gpu_memory_utilization": 0.9},
 )
 
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
