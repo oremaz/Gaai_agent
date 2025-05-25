@@ -37,17 +37,14 @@ async def run_and_submit_all( profile= None):
     and displays the results.
     """
     # --- Determine HF Space Runtime URL and Repo URL ---
-    #space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
+    space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
 
-    #if profile:
-        #username= f"{profile.username}"
-        #print(f"User logged in: {username}")
-    #else:
-        #print("User not logged in.")
-        #return "Please Login to Hugging Face with the button.", None
-
-    username = "oremaz"
-    print(f"Running as: {username}")
+    if profile:
+        username= f"{profile.username}"
+        print(f"User logged in: {username}")
+    else:
+        print("User not logged in.")
+        return "Please Login to Hugging Face with the button.", None
 
     api_url = DEFAULT_API_URL
     questions_url = f"{api_url}/questions"
@@ -174,7 +171,7 @@ with gr.Blocks() as demo:
         """
     )
 
-    #gr.LoginButton()
+    gr.LoginButton()
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
 
