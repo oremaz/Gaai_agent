@@ -9,8 +9,8 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
 import os
 from typing import List, Dict, Any
-from llama_index.core.tools.ondemand_loader_tool import OnDemandLoaderTool
 from llama_index.tools.arxiv import ArxivToolSpec
+from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
@@ -238,10 +238,6 @@ analysis_agent = FunctionAgent(
     tools=[enhanced_rag_tool, cross_document_tool],
     max_steps=5
 )
-
-
-from llama_index.tools.arxiv import ArxivToolSpec
-from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 
 class IntelligentSourceRouter:
     def __init__(self):
