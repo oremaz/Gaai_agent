@@ -278,7 +278,6 @@ class IntelligentSourceRouter:
                         )
                     result = "\n".join(formatted)
                 results.append(f"**Web Search Results:**\n{result}")
-                print (results)
         except Exception as e:
             results.append(f"**Search failed**: {str(e)}")
         return "\n\n".join(results)
@@ -623,7 +622,6 @@ class EnhancedGAIAAgent:
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
-        print("data",question_data)
 
         try:
             file_path = self.download_gaia_file(task_id)
