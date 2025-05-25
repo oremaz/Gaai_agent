@@ -31,20 +31,23 @@ class BasicAgent:
         except Exception as e:
             return e
 
-async def run_and_submit_all( profile: gr.OAuthProfile | None):
+async def run_and_submit_all( profile= None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
     and displays the results.
     """
     # --- Determine HF Space Runtime URL and Repo URL ---
-    space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
+    #space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
 
-    if profile:
-        username= f"{profile.username}"
-        print(f"User logged in: {username}")
-    else:
-        print("User not logged in.")
-        return "Please Login to Hugging Face with the button.", None
+    #if profile:
+        #username= f"{profile.username}"
+        #print(f"User logged in: {username}")
+    #else:
+        #print("User not logged in.")
+        #return "Please Login to Hugging Face with the button.", None
+
+    username = "kaggle_user"
+    print(f"Running as: {username}")
 
     api_url = DEFAULT_API_URL
     questions_url = f"{api_url}/questions"
@@ -57,7 +60,7 @@ async def run_and_submit_all( profile: gr.OAuthProfile | None):
         print(f"Error instantiating agent: {e}")
         return f"Error initializing agent: {e}", None
     # In the case of an app running as a hugging Face space, this link points toward your codebase ( usefull for others so please keep it public)
-    agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
+    #agent_code = f"https://huggingface.co/spaces/{space_id}/tree/main"
     print(agent_code)
 
     # 2. Fetch Questions
@@ -170,7 +173,7 @@ with gr.Blocks() as demo:
         """
     )
 
-    gr.LoginButton()
+    #gr.LoginButton()
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
 
@@ -186,23 +189,23 @@ with gr.Blocks() as demo:
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
     # Check for SPACE_HOST and SPACE_ID at startup for information
-    space_host_startup = os.getenv("SPACE_HOST")
-    space_id_startup = os.getenv("SPACE_ID") # Get SPACE_ID at startup
+    #space_host_startup = os.getenv("SPACE_HOST")
+    #space_id_startup = os.getenv("SPACE_ID") # Get SPACE_ID at startup
 
-    if space_host_startup:
-        print(f"✅ SPACE_HOST found: {space_host_startup}")
-        print(f"   Runtime URL should be: https://{space_host_startup}.hf.space")
-    else:
-        print("ℹ️  SPACE_HOST environment variable not found (running locally?).")
+    #if space_host_startup:
+        #print(f"✅ SPACE_HOST found: {space_host_startup}")
+        #print(f"   Runtime URL should be: https://{space_host_startup}.hf.space")
+    #else:
+        #print("ℹ️  SPACE_HOST environment variable not found (running locally?).")
 
-    if space_id_startup: # Print repo URLs if SPACE_ID is found
-        print(f"✅ SPACE_ID found: {space_id_startup}")
-        print(f"   Repo URL: https://huggingface.co/spaces/{space_id_startup}")
-        print(f"   Repo Tree URL: https://huggingface.co/spaces/{space_id_startup}/tree/main")
-    else:
-        print("ℹ️  SPACE_ID environment variable not found (running locally?). Repo URL cannot be determined.")
+    #if space_id_startup: # Print repo URLs if SPACE_ID is found
+        #print(f"✅ SPACE_ID found: {space_id_startup}")
+        #print(f"   Repo URL: https://huggingface.co/spaces/{space_id_startup}")
+        #print(f"   Repo Tree URL: https://huggingface.co/spaces/{space_id_startup}/tree/main")
+    #else:
+        #print("ℹ️  SPACE_ID environment variable not found (running locally?). Repo URL cannot be determined.")
 
     print("-"*(60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for Basic Agent Evaluation...")
-    demo.launch(debug=True, share=False)
+    demo.launch(debug=True, share=True)
