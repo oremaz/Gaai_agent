@@ -4,7 +4,6 @@ from llama_index.core import VectorStoreIndex, Document
 from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.huggingface_api import HuggingFaceInferenceAPI
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
@@ -23,9 +22,24 @@ from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
 
-proj_llm = OpenRouter(
-    model="mistralai/mistral-small-3.1-24b-instruct:free", 
-    api_key=os.getenv("OPENROUTER_API_KEY"),  
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from llama_index.llms.huggingface import HuggingFaceLLM
+
+model_id = "mistralai/Pixtral-12B-Base-2409"  # or "mistralai/Mistral-7B-Instruct-v0.2"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    torch_dtype="auto",        # or torch.float16 for FP16
+    device_map="auto"          # will use all available GPUs
+)
+
+proj_llm = HuggingFaceLLM(
+    model=model,
+    tokenizer=tokenizer,
+    context_window=3900,       # adjust as needed
+    max_new_tokens=512,        # adjust as needed
+    device_map="auto",         # ensures multi-GPU support
+    generate_kwargs={"temperature": 0.7, "top_p": 0.95}
 )
 
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
