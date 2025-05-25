@@ -31,7 +31,7 @@ class BasicAgent:
         except Exception as e:
             return e
 
-async def run_and_submit_all( profile= None):
+async def run_and_submit_all( profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
     and displays the results.
