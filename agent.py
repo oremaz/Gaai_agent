@@ -550,54 +550,54 @@ class EnhancedGAIAAgent:
         )
 
     def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
-    """
-    Post-process the agent response to extract the exact GAIA format answer
-    """
-    format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
-
-Examples:
-
-Question: "How many research papers were published by the university between 2010 and 2020?"
-Response: "Based on my analysis of the data, I found that the university published 156 research papers between 2010 and 2020."
-Answer: 156
-
-Question: "What is the last name of the software engineer mentioned in the report?"
-Response: "After reviewing the document, the software engineer mentioned is Dr. Martinez who developed the system."
-Answer: Martinez
-
-Question: "List the programming languages from this job description, alphabetized:"
-Response: "The job description mentions several programming languages including Python, Java, C++, and JavaScript. When alphabetized, these are: C++, Java, JavaScript, Python"
-Answer: C++, Java, JavaScript, Python
-
-Question: "Give only the first name of the developer who created the framework."
-Response: "The framework was created by Sarah Johnson, a senior developer at the company."
-Answer: Sarah
-
-Question: "Give the ISO country code as your answer."
-Response: "The country in question is France, which has the ISO code FRA."
-Answer: FRA
-
-Question: "Provide your response in standard notation."
-Response: "The calculated value is 314 million, which in standard notation is 3.14e+8"
-Answer: 3.14e+8
-
-Now extract the exact answer:
-
-Question: {original_question}
-Response: {raw_response}
-Answer:"""
-
-    try:
-        # Use a simple, fast LLM for formatting
-        formatting_response = proj_llm.complete(format_prompt)
-        answer = str(formatting_response).strip()
-        
-        return answer
-        
-    except Exception as e:
-        print(f"Error in formatting: {e}")
-        return self._extract_fallback_answer(raw_response)
-
+        """
+        Post-process the agent response to extract the exact GAIA format answer
+        """
+        format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
+    
+    Examples:
+    
+    Question: "How many research papers were published by the university between 2010 and 2020?"
+    Response: "Based on my analysis of the data, I found that the university published 156 research papers between 2010 and 2020."
+    Answer: 156
+    
+    Question: "What is the last name of the software engineer mentioned in the report?"
+    Response: "After reviewing the document, the software engineer mentioned is Dr. Martinez who developed the system."
+    Answer: Martinez
+    
+    Question: "List the programming languages from this job description, alphabetized:"
+    Response: "The job description mentions several programming languages including Python, Java, C++, and JavaScript. When alphabetized, these are: C++, Java, JavaScript, Python"
+    Answer: C++, Java, JavaScript, Python
+    
+    Question: "Give only the first name of the developer who created the framework."
+    Response: "The framework was created by Sarah Johnson, a senior developer at the company."
+    Answer: Sarah
+    
+    Question: "Give the ISO country code as your answer."
+    Response: "The country in question is France, which has the ISO code FRA."
+    Answer: FRA
+    
+    Question: "Provide your response in standard notation."
+    Response: "The calculated value is 314 million, which in standard notation is 3.14e+8"
+    Answer: 3.14e+8
+    
+    Now extract the exact answer:
+    
+    Question: {original_question}
+    Response: {raw_response}
+    Answer:"""
+    
+        try:
+            # Use a simple, fast LLM for formatting
+            formatting_response = proj_llm.complete(format_prompt)
+            answer = str(formatting_response).strip()
+            
+            return answer
+            
+        except Exception as e:
+            print(f"Error in formatting: {e}")
+            return self._extract_fallback_answer(raw_response)
+    
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
