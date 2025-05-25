@@ -331,19 +331,11 @@ def enhanced_smart_research_tool(query: str, task_context: str = "", max_results
 research_tool = FunctionTool.from_defaults(
     fn=enhanced_smart_research_tool,
     name="Research Tool",
-    description="""Intelligent research specialist that automatically routes between scientific and general sources. Use this tool when you need:
+    description="""Intelligent research specialist that automatically routes between scientific and general sources and extract content. Use this tool at least when you need:
     
-    **Scientific Research (ArXiv):**
-    - Academic papers, research studies, technical algorithms
-    - Scientific experiments, theories, mathematical concepts
-    - Recent developments in AI, ML, physics, chemistry, etc.
+    **Scientific Research (ArXiv + Content Extraction):**
     
     **General Research (Web + Content Extraction):**
-    - Current events, news, real-time information
-    - Biographical information, company details, locations
-    - How-to guides, technical documentation
-    - Weather data, sports results, cultural information
-    - Product specifications, reviews, comparisons
     
     **Automatic Features:**
     - Intelligently selects between ArXiv and web search
@@ -360,23 +352,22 @@ code_agent = CodeActAgent(
     description="Advanced calculations, data processing, and final answer synthesis using ReAct reasoning",
     system_prompt="""
     You are a coding and reasoning specialist using ReAct methodology.
-
+    
     For each task:
     1. THINK: Analyze what needs to be calculated or processed
     2. ACT: Execute appropriate code or calculations
     3. OBSERVE: Review results and determine if more work is needed
     4. REPEAT: Continue until you have the final answer
 
-    Always show your reasoning process clearly and provide exact answers as required by GAIA.
+    Always show your reasoning process clearly and provide exact answers.
     """,
-    llm=proj_llm,  # Your language model instance
-    max_steps=5    # Optional: limit the number of reasoning steps
+    llm=proj_llm,  
 )
 
 analysis_tool = FunctionTool.from_defaults(
     fn=analysis_function,
     name="AnalysisAgent",
-    description="""Advanced multimodal document analysis specialist. Use this tool when you need to:
+    description="""Advanced multimodal document analysis specialist. Use this tool at least when you need to:
     
     **Document Processing:**
     - Analyze PDF, Word, CSV, or image files provided with the question
@@ -399,7 +390,7 @@ analysis_tool = FunctionTool.from_defaults(
 code_tool = FunctionTool.from_defaults(
     fn=code_function,
     name="CodeAgent",
-    description="""Advanced computational specialist using ReAct reasoning. Use this tool when you need:
+    description="""Advanced computational specialist using ReAct reasoning. Use this tool at least when you need:
     
     **Mathematical Calculations:**
     - Complex arithmetic, algebra, statistics, probability
@@ -424,7 +415,7 @@ code_tool = FunctionTool.from_defaults(
     - Data structure manipulation
     - Regular expression operations
     
-    **When to use:** Questions requiring precise calculations, data manipulation, logical reasoning with code, or when you need to verify numerical results.
+    **When to use:** Questions requiring precise calculations, data manipulation, logical reasoning with code verification, mathematical problem solving, or when you need to process numerical/textual data programmatically.
     
     **Input format:** Describe the calculation or processing task clearly, including any specific requirements or constraints."""
 )
