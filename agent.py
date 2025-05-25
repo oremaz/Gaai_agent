@@ -22,13 +22,15 @@ from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from llama_index.llms.vllm import Vllm
+from llama_index.llms.huggingface import HuggingFaceLLM
 
-llm = Vllm(
-    model="mistralai/Pixtral-12B-2409",
-    tensor_parallel_size=2,  # For two GPUs
-    max_new_tokens=512,
-    vllm_kwargs={"swap_space": 1, "gpu_memory_utilization": 0.9},
+model_id = "Qwen/Qwen2.5-14B-Instruct" 
+proj_llm = HuggingFaceLLM(
+    model_name=model_id,
+    tokenizer_name=model_id,
+    device_map="auto",           # will use GPU if available
+    model_kwargs={"torch_dtype": "auto"},
+    generate_kwargs={"temperature": 0.7, "top_p": 0.95}
 )
 
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
