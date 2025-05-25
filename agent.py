@@ -23,6 +23,7 @@ from llama_index.callbacks.wandb import WandbCallbackHandler
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
 import requests
+import logging
 
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
@@ -33,6 +34,9 @@ callback_manager = CallbackManager([
     llama_debug        # For general debugging
 ])
 
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
+logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
 model_id = "Qwen/Qwen2.5-7B-Instruct" 
 proj_llm = HuggingFaceLLM(
