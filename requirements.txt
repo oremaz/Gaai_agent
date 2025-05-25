@@ -23,5 +23,4 @@ sentence-transformers
 Pillow
 python-dotenv
 wandb
-logging
 numpy == 1.26.4
