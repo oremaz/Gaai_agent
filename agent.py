@@ -21,6 +21,7 @@ from llama_index.core import Settings
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
+import requests
 
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 callback_manager = CallbackManager([llama_debug])
@@ -579,9 +580,12 @@ class EnhancedGAIAAgent:
     Answer:"""
     
         try:
-            # Use a simple, fast LLM for formatting
             formatting_response = proj_llm.complete(format_prompt)
             answer = str(formatting_response).strip()
+            
+            # Extract just the answer after "Answer:"
+            if "Answer:" in answer:
+                answer = answer.split("Answer:")[-1].strip()
             
             return answer
             
@@ -589,16 +593,39 @@ class EnhancedGAIAAgent:
             print(f"Error in formatting: {e}")
             return self._extract_fallback_answer(raw_response)
     
-    
+    def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
+        """Download file associated with task_id"""
+        try:
+            response = requests.get(f"{api_url}/files/{task_id}", timeout=30)
+            response.raise_for_status()
+            
+            # Save file locally
+            filename = f"task_{task_id}_file"
+            with open(filename, 'wb') as f:
+                f.write(response.content)
+            return filename
+        except Exception as e:
+            print(f"Failed to download file for task {task_id}: {e}")
+            return None
+
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
         print("data",question_data)
-        
+
+        try:
+            file_path = self.download_gaia_file(task_id)
+        except FileNotFoundError as e:
+            print(f"File not found for task {task_id}: {e}")
+            file_path = None
+        except Exception as e:
+            print(f"Unexpected error downloading file for task {task_id}: {e}")
+            file_path = None
+
         context_prompt = f"""
         GAIA Task ID: {task_id}
         Question: {question}
-        {f"Associated files: {question_data.get('file_name', '')}" if 'file_name' in question_data else 'No files provided'}
+        {'File downloaded: ' + file_path if file_path else 'No files referenced'}
         
         Analyze this question and provide your reasoning and final answer.
         """
@@ -611,7 +638,6 @@ class EnhancedGAIAAgent:
             # Post-process to extract exact GAIA format
             formatted_answer = await self.format_gaia_answer(str(raw_response), question)
             
-            print(f"Raw response: {raw_response}")
             print(f"Formatted answer: {formatted_answer}")
             
             return formatted_answer
