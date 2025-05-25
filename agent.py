@@ -257,68 +257,54 @@ analysis_agent = FunctionAgent(
 
 class IntelligentSourceRouter:
     def __init__(self):
-        # Initialize ArXiv and DuckDuckGo as LlamaIndex tools
         self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
-        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
+        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
 
-    def detect_intent_and_extract_content(self, query: str, max_results = 1) -> str:
-        # Use your LLM to decide between arxiv and web_search
+    def route_and_search(self, query: str) -> str:
+        """Simple routing between academic and general search"""
+        
+        # Quick intent detection
         intent_prompt = f"""
-        Analyze this query and determine if it's scientific research or general information:
-        Query: "{query}"
-        Choose ONE source:
-        - arxiv: For scientific research, academic papers, technical studies, algorithms, experiments
-        - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
-        Respond with ONLY "arxiv" or "web_search".
+        Is this question about scientific research or general information?
+        Question: "{query}"
+        
+        Answer "arxiv" for scientific/academic topics, "web" for everything else.
         """
+        
         response = proj_llm.complete(intent_prompt)
-        selected_source = response.text.strip().lower()
-
-        results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
+        source = "arxiv" if "arxiv" in response.text.lower() else "web"
+        
         try:
-            if selected_source == 'arxiv':
-                result = self.arxiv_tool.call(query=query)
-                results.append(f"**ArXiv Research:**\n{result}")
+            if source == "arxiv":
+                return self.arxiv_tool.call(query=query)
             else:
-                result = self.duckduckgo_tool.call(query=query, max_results=max_results)
-                # Format results if needed
+                result = self.duckduckgo_tool.call(query=query)
                 if isinstance(result, list):
-                    formatted = []
-                    for i, r in enumerate(result, 1):
-                        formatted.append(
-                            f"{i}. **{r.get('title', '')}**\n   URL: {r.get('href', '')}\n   {r.get('body', '')}"
-                        )
-                    result = "\n".join(formatted)
-                results.append(f"**Web Search Results:**\n{result}")
+                    return "\n\n".join([f"{r.get('title', '')}: {r.get('body', '')}" for r in result])
+                return str(result)
         except Exception as e:
-            results.append(f"**Search failed**: {str(e)}")
-        return "\n\n".join(results)
+            return f"Search failed: {str(e)}"
 
-# Initialize router
-intelligent_router = IntelligentSourceRouter()
+# Simple research function
+def research_tool_function(query: str) -> str:
+    """Answers queries using intelligent source routing"""
+    router = IntelligentSourceRouter()
+    return router.route_and_search(query)
 
-# Create enhanced research tool
-def enhanced_smart_research_tool(query: str, task_context: str = "") -> str:
-    full_query = f"{query} {task_context}".strip()
-    return intelligent_router.detect_intent_and_extract_content(full_query)
-
+# Clean tool definition
 research_tool = FunctionTool.from_defaults(
-    fn=enhanced_smart_research_tool,
-    name="Research Tool",
-    description="""Intelligent research specialist that automatically routes between scientific and general sources and extract content. Use this tool at least when you need:
-    
-    **Scientific Research (ArXiv + Content Extraction):**
-    
-    **General Research (Web + Content Extraction):**
-    
-    **Automatic Features:**
-    - Intelligently selects between ArXiv and web search
-    - Extracts full content from web pages (not just snippets)
-    - Provides source attribution and detailed information
-    
-    **When to use:** Questions requiring external knowledge not in your training data, current events, scientific research, or factual verification.
-    
-    **Input format:** Provide the research query with any relevant context."""
+    fn=research_tool_function,
+    name="research_tool",
+    description="""Intelligent research tool that answers queries by automatically routing between academic (ArXiv) and general (web) search sources.
+
+**When to Use:**
+- Questions requiring external knowledge beyond training data
+- Current or recent information (post-training cutoff)  
+- Scientific research requiring academic sources
+- Factual verification of specific claims
+- Any question where search results could provide the exact answer
+
+Simply provide your question and get a direct answer."""
 )
 
 def execute_python_code(code: str) -> str:
@@ -539,7 +525,7 @@ class EnhancedGAIAAgent:
             
             **2. research_tool** - Intelligent research specialist with automatic routing
             - Use for: External knowledge, current events, scientific papers
-            - Capabilities: Auto-routes between ArXiv (scientific) and web search (general), extracts full content
+            - Capabilities: Auto-routes between ArXiv (scientific) and web search (general), answers the question
             - When to use: Questions requiring external knowledge, factual verification, current information
             
             **3. code_tool** - Advanced computational specialist using ReAct reasoning
@@ -649,7 +635,7 @@ class EnhancedGAIAAgent:
             
             Additionnal instructions to system prompt :
             1. If a file is available, use the analysis_tool to process it
-            2. If a link is available, use the research_tool to extract the content in it
+            2. If a link is in the question, use the research_tool. It should provide a direct answer to the question.
             """
             
             try:
