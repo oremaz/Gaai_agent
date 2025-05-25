@@ -25,6 +25,9 @@ import requests
 import logging
 from llama_index.core.workflow import Context
 from llama_index.core.agent.workflow import AgentStream
+from llama_index.readers.web import TrafilaturaWebReader
+from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
+
 
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
@@ -60,6 +63,7 @@ Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
 
 
+
 class EnhancedRAGQueryEngine:
     def __init__(self, task_context: str = ""):
         self.task_context = task_context
@@ -71,10 +75,12 @@ class EnhancedRAGQueryEngine:
             '.docx': DocxReader(),
             '.doc': DocxReader(),
             '.csv': CSVReader(),
-            '.txt': lambda file_path: [Document(text=open(file_path, 'r').read())],
+            '.txt': lambda file_path: [Document(text=open(file_path, 'r', encoding='utf-8').read())],
             '.jpg': ImageReader(),
             '.jpeg': ImageReader(),
-            '.png': ImageReader()
+            '.png': ImageReader(), 
+            'web': TrafilaturaWebReader(),
+            'youtube': YoutubeTranscriptReader()
         }
         
         self.sentence_window_parser = SentenceWindowNodeParser.from_defaults(
@@ -101,13 +107,18 @@ class EnhancedRAGQueryEngine:
                     else:
                         docs = reader.load_data(file=file_path)
                     
+                    # Ensure docs is a list
+                    if not isinstance(docs, list):
+                        docs = [docs]
+                    
                     # Add metadata to all documents
                     for doc in docs:
-                        doc.metadata.update({
-                            "file_path": file_path,
-                            "file_type": file_ext[1:],
-                            "task_context": self.task_context
-                        })
+                        if hasattr(doc, 'metadata'):
+                            doc.metadata.update({
+                                "file_path": file_path,
+                                "file_type": file_ext[1:],
+                                "task_context": self.task_context
+                            })
                     documents.extend(docs)
                         
             except Exception as e:
@@ -119,8 +130,8 @@ class EnhancedRAGQueryEngine:
                         text=content,
                         metadata={"file_path": file_path, "file_type": "text", "error": str(e)}
                     ))
-                except:
-                    print(f"Failed to process {file_path}: {e}")
+                except Exception as fallback_error:
+                    print(f"Failed to process {file_path}: {e}, Fallback error: {fallback_error}")
         
         return documents
     
@@ -140,8 +151,7 @@ class EnhancedRAGQueryEngine:
     def create_context_aware_query_engine(self, index: VectorStoreIndex):
         retriever = VectorIndexRetriever(
             index=index,
-            similarity_top_k=10,
-            embed_model=self.embed_model
+            similarity_top_k=10
         )
         
         query_engine = RetrieverQueryEngine(
@@ -151,6 +161,121 @@ class EnhancedRAGQueryEngine:
         )
         
         return query_engine
+
+class HybridWebRAGTool:
+    def __init__(self, rag_engine: EnhancedRAGQueryEngine):
+        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+        self.rag_engine = rag_engine
+        
+    def is_youtube_url(self, url: str) -> bool:
+        """Check if URL is a YouTube video"""
+        return 'youtube.com/watch' in url or 'youtu.be/' in url
+        
+    def search_and_analyze(self, query: str, max_results: int = 3) -> str:
+        """Search web and analyze content with RAG, including YouTube support"""
+        
+        try:
+            # Step 1: Get URLs from DuckDuckGo
+            search_results = self.duckduckgo_tool.call(query=query, max_results=max_results)
+            
+            if isinstance(search_results, list):
+                urls = [r.get('href', '') for r in search_results if r.get('href')]
+            else:
+                return f"Search failed: {search_results}"
+            
+            if not urls:
+                return "No URLs found in search results"
+            
+            # Step 2: Process URLs based on type
+            web_documents = []
+            youtube_urls = []
+            regular_urls = []
+            
+            # Separate YouTube URLs from regular web URLs
+            for url in urls:
+                if self.is_youtube_url(url):
+                    youtube_urls.append(url)
+                else:
+                    regular_urls.append(url)
+            
+            # Process YouTube videos
+            if youtube_urls:
+                try:
+                    youtube_docs = self.rag_engine.readers['youtube'].load_data(youtube_urls)
+                    if isinstance(youtube_docs, list):
+                        web_documents.extend(youtube_docs)
+                    else:
+                        web_documents.append(youtube_docs)
+                except Exception as e:
+                    print(f"Failed to load YouTube videos: {e}")
+            
+            # Process regular web pages
+            for url in regular_urls:
+                try:
+                    docs = self.rag_engine.readers['web'].load_data([url])
+                    if isinstance(docs, list):
+                        web_documents.extend(docs)
+                    else:
+                        web_documents.append(docs)
+                except Exception as e:
+                    print(f"Failed to load {url}: {e}")
+                    continue
+            
+            if not web_documents:
+                return "No content could be extracted from URLs"
+            
+            # Step 3: Create temporary index and query
+            temp_index = self.rag_engine.create_advanced_index(web_documents)
+            
+            # Step 4: Query the indexed content
+            query_engine = self.rag_engine.create_context_aware_query_engine(temp_index)
+            
+            response = query_engine.query(query)
+            
+            # Add source information
+            source_info = []
+            if youtube_urls:
+                source_info.append(f"YouTube videos: {len(youtube_urls)}")
+            if regular_urls:
+                source_info.append(f"Web pages: {len(regular_urls)}")
+            
+            return f"{str(response)}\n\nSources analyzed: {', '.join(source_info)}"
+            
+        except Exception as e:
+            return f"Error in hybrid search: {str(e)}"
+
+# Create the research tool function
+def research_tool_function(query: str) -> str:
+    """Combines DuckDuckGo search with RAG analysis of web content and YouTube videos"""
+    try:
+        rag_engine = EnhancedRAGQueryEngine()
+        hybrid_tool = HybridWebRAGTool(rag_engine)
+        return hybrid_tool.search_and_analyze(query)
+    except Exception as e:
+        return f"Research tool error: {str(e)}"
+
+# Create the research tool for your agent
+research_tool = FunctionTool.from_defaults(
+    fn=research_tool_function,
+    name="research_tool",
+    description="""Advanced research tool that combines web search with RAG analysis, supporting both web pages and YouTube videos, with context-aware processing.
+
+**When to Use:**
+- Questions requiring external knowledge beyond training data
+- Current or recent information (post-training cutoff)
+- Scientific research requiring academic sources
+- Factual verification of specific claims
+- Any question where search results could provide the exact answer
+- Research involving video content and tutorials
+- Complex queries needing synthesis of multiple sources
+
+**Advantages:**
+- Full content analysis from both web and video sources
+- Automatic content type detection and processing
+- Semantic search within retrieved content
+- Reranking for relevance across all source types
+- Comprehensive synthesis of multimedia information"""
+)
 
 def comprehensive_rag_analysis(file_paths: List[str], query: str, task_context: str = "") -> str:
     try:
@@ -220,7 +345,7 @@ def cross_document_analysis(file_paths: List[str], query: str, task_context: str
 enhanced_rag_tool = FunctionTool.from_defaults(
     fn=comprehensive_rag_analysis,
     name="Enhanced RAG Analysis",
-    description="Comprehensive document analysis using advanced RAG with hybrid search and context-aware processing"
+    description="Comprehensive document analysis using advanced RAG with context-aware processing"
 )
 
 cross_document_tool = FunctionTool.from_defaults(
@@ -232,7 +357,7 @@ cross_document_tool = FunctionTool.from_defaults(
 # Analysis Agent
 analysis_agent = FunctionAgent(
     name="AnalysisAgent",
-    description="Advanced multimodal analysis using enhanced RAG with hybrid search and cross-document capabilities",
+    description="Advanced multimodal analysis using enhanced RAG and cross-document capabilities",
     system_prompt="""
     You are an advanced analysis specialist with access to:
     - Enhanced RAG with hybrid search and reranking
@@ -247,7 +372,7 @@ analysis_agent = FunctionAgent(
     4. Extract precise information with source attribution
     5. Handle both text and visual content analysis
     
-    Always consider the GAIA task context and provide precise, well-sourced answers.
+    Always consider the task context and provide precise, well-sourced answers.
     """,
     llm=proj_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
@@ -261,7 +386,7 @@ class IntelligentSourceRouter:
         self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
 
     def route_and_search(self, query: str) -> str:
-        """Simple routing between academic and general search"""
+        """Simple routing between academic and general search - returns URLs only"""
         
         # Quick intent detection
         intent_prompt = f"""
@@ -276,18 +401,23 @@ class IntelligentSourceRouter:
         
         try:
             if source == "arxiv":
-                return self.arxiv_tool.call(query=query)
+                # ArXiv results typically contain URLs in the response text
+                arxiv_result = self.arxiv_tool.call(query=query)
+                # Extract URLs from ArXiv response (you may need to parse this based on actual format)
+                return str(arxiv_result)  # ArXiv tool should return URLs
             else:
                 result = self.duckduckgo_tool.call(query=query)
                 if isinstance(result, list):
-                    return "\n\n".join([f"{r.get('title', '')}: {r.get('body', '')}" for r in result])
+                    # Extract only URLs from search results
+                    urls = [r.get('href', '') for r in result if r.get('href')]
+                    return "\n".join(urls)
                 return str(result)
         except Exception as e:
             return f"Search failed: {str(e)}"
 
 # Simple research function
 def research_tool_function(query: str) -> str:
-    """Answers queries using intelligent source routing"""
+    """Returns URLs for queries using intelligent source routing"""
     router = IntelligentSourceRouter()
     return router.route_and_search(query)
 
@@ -295,16 +425,16 @@ def research_tool_function(query: str) -> str:
 research_tool = FunctionTool.from_defaults(
     fn=research_tool_function,
     name="research_tool",
-    description="""Intelligent research tool that answers queries by automatically routing between academic (ArXiv) and general (web) search sources.
+    description="""Intelligent URL finder that routes between academic (ArXiv) and general (web) search sources to return relevant URLs.
 
 **When to Use:**
 - Questions requiring external knowledge beyond training data
 - Current or recent information (post-training cutoff)  
 - Scientific research requiring academic sources
 - Factual verification of specific claims
-- Any question where search results could provide the exact answer
+- Any question where you need URLs to relevant sources
 
-Simply provide your question and get a direct answer."""
+Simply provide your question and get URLs to visit for further reading."""
 )
 
 def execute_python_code(code: str) -> str:
@@ -486,11 +616,11 @@ code_tool = FunctionTool.from_defaults(
     - **Self-debugging**: Identifies and fixes errors through iterative refinement
     - **Library Integration**: Leverages numpy, pandas, matplotlib, scipy, sklearn, and other scientific libraries
     - **Result Verification**: Validates outputs and adjusts approach as needed
-    
+
     **When to Use:**
     - Mathematical calculations requiring step-by-step computation
     - Data analysis and statistical processing
-    - Algorithm implementation and optimization
+    - Algorithm implementation, optimization and execution
     - Numerical simulations and modeling
     - Text processing and pattern analysis
     - Complex logical operations requiring code verification
@@ -520,30 +650,23 @@ class EnhancedGAIAAgent:
             
             **1. analysis_tool** - Advanced multimodal document analysis specialist
             - Use for: PDF, Word, CSV, image file analysis
-            - Capabilities: Extract data from tables/charts, cross-reference documents, semantic search
             - When to use: Questions with file attachments, document analysis, data extraction
             
             **2. research_tool** - Intelligent research specialist with automatic routing
             - Use for: External knowledge, current events, scientific papers
-            - Capabilities: Auto-routes between ArXiv (scientific) and web search (general), answers the question
             - When to use: Questions requiring external knowledge, factual verification, current information
             
             **3. code_tool** - Advanced computational specialist using ReAct reasoning
             - Use for: Mathematical calculations, data processing, logical operations
-            - Capabilities: Generates and executes Python code, handles complex computations, step-by-step problem solving
+            - Capabilities: Generates and executes Python, handles complex computations, step-by-step problem solving
             - When to use: Precise calculations, data manipulation, mathematical problem solving
-            
-            IMPORTANT: Use tools strategically - only when their specific expertise is needed.
-            For simple questions, you can answer directly without using any tools.
-            
-            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
-            - For numbers: provide only the number (e.g., "42" or "3.14")
-            - For strings: provide only the exact string (e.g., "Paris" or "Einstein")
-            - For lists: use comma separation (e.g., "apple, banana, orange")
-            - NO explanations, NO additional text, ONLY the precise answer
+
+            **4. code_execution_tool** - Use only to execute .py file
+                       
+            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format : NO explanations, NO additional text, ONLY the precise answer
             """,
             llm=proj_llm,
-            tools=[analysis_tool, research_tool, code_tool], 
+            tools=[analysis_tool, research_tool, code_tool, code_execution_tool], 
             max_steps=10, 
             verbose = True, 
             callback_manager=callback_manager,
@@ -634,8 +757,8 @@ class EnhancedGAIAAgent:
             {'File downloaded: ' + file_path if file_path else 'No additional files referenced'}
             
             Additionnal instructions to system prompt :
-            1. If a file is available, use the analysis_tool to process it
-            2. If a link is in the question, use the research_tool. It should provide a direct answer to the question.
+            1. If a file is available, use the analysis_tool (except for .py files).
+            2. If a link is in the question, use the research_tool.
             """
             
             try:
