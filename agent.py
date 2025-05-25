@@ -9,7 +9,6 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
 import os
 from typing import List, Dict, Any
-from llama_index.readers.web import SimpleWebPageReader
 from llama_index.core.tools.ondemand_loader_tool import OnDemandLoaderTool
 from llama_index.tools.arxiv import ArxivToolSpec
 import duckduckgo_search as ddg
@@ -20,6 +19,7 @@ from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
+from llama_index.core.agent.workflow import CodeActAgent
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
@@ -240,170 +240,197 @@ analysis_agent = FunctionAgent(
 )
 
 
+from llama_index.tools.arxiv import ArxivToolSpec
+from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
+
 class IntelligentSourceRouter:
     def __init__(self):
-        # Initialize tools - only ArXiv and web search
-        self.arxiv_spec = ArxivToolSpec()
-        
-        # Add web content loader
-        self.web_reader = SimpleWebPageReader()
-        
-        # Create OnDemandLoaderTool for web content
-        self.web_loader_tool = OnDemandLoaderTool.from_defaults(
-            self.web_reader,
-            name="Web Content Loader",
-            description="Load and analyze web page content with intelligent chunking and search"
-        )
-            
-    def web_search_fallback(self, query: str, max_results: int = 5) -> str:
-        try:
-            results = ddg.DDGS().text(query, max_results=max_results)
-            return "\n".join([f"{i}. **{r['title']}**\n   URL: {r['href']}\n   {r['body']}" for i, r in enumerate(results, 1)])
-        except Exception as e:
-            return f"Search failed: {str(e)}"
-    
-    def extract_web_content(self, urls: List[str], query: str) -> str:
-        """Extract and analyze content from web URLs"""
-        try:
-            content_results = []
-            for url in urls[:3]:  # Limit to top 3 URLs
-                try:
-                    result = self.web_loader_tool.call(
-                        urls=[url],
-                        query=f"Extract information relevant to: {query}"
-                    )
-                    content_results.append(f"**Content from {url}:**\n{result}")
-                except Exception as e:
-                    content_results.append(f"**Failed to load {url}**: {str(e)}")
-            
-            return "\n\n".join(content_results)
-        except Exception as e:
-            return f"Content extraction failed: {str(e)}"
-    
+        # Initialize ArXiv and DuckDuckGo as LlamaIndex tools
+        self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
+        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+
     def detect_intent_and_route(self, query: str) -> str:
-        # Simple LLM-based discrimination: scientific vs non-scientific
+        # Use your LLM to decide between arxiv and web_search
         intent_prompt = f"""
         Analyze this query and determine if it's scientific research or general information:
         Query: "{query}"
-        
         Choose ONE source:
         - arxiv: For scientific research, academic papers, technical studies, algorithms, experiments
         - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
-        
         Respond with ONLY "arxiv" or "web_search".
         """
-        
-        response = proj_llm.complete(intent_prompt)
+        response = text_llm.complete(intent_prompt)
         selected_source = response.text.strip().lower()
-        
-        # Execute search and extract content
+
         results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
-        
         try:
             if selected_source == 'arxiv':
-                result = self.arxiv_spec.to_tool_list()[0].call(query=query, max_results=3)
+                result = self.arxiv_tool.call(query=query, max_results=3)
                 results.append(f"**ArXiv Research:**\n{result}")
-                
-            else:  # Default to web_search for everything else
-                # Get search results
-                search_results = self.web_search_fallback(query, 5)
-                results.append(f"**Web Search Results:**\n{search_results}")
-                
-                # Extract URLs and load content
-                urls = re.findall(r'URL: (https?://[^\s]+)', search_results)
-                if urls:
-                    web_content = self.extract_web_content(urls, query)
-                    results.append(f"**Extracted Web Content:**\n{web_content}")
-                    
+            else:
+                result = self.duckduckgo_tool.call(query=query, max_results=5)
+                # Format results if needed
+                if isinstance(result, list):
+                    formatted = []
+                    for i, r in enumerate(result, 1):
+                        formatted.append(
+                            f"{i}. **{r.get('title', '')}**\n   URL: {r.get('href', '')}\n   {r.get('body', '')}"
+                        )
+                    result = "\n".join(formatted)
+                results.append(f"**Web Search Results:**\n{result}")
         except Exception as e:
             results.append(f"**Search failed**: {str(e)}")
-        
+        return "\n\n".join(results)
+
+class IntelligentSourceRouter:
+    def __init__(self):
+        # Initialize Arxiv and DuckDuckGo tools
+        self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
+        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+
+    def detect_intent_and_extract_content(self, query: str, max_results: int = 3) -> str:
+        # Use your LLM to decide between arxiv and web_search
+        intent_prompt = f"""
+        Analyze this query and determine if it's scientific research or general information:
+        Query: "{query}"
+        Choose ONE source:
+        - arxiv: For scientific research, academic papers, technical studies, algorithms, experiments
+        - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
+        Respond with ONLY "arxiv" or "web_search".
+        """
+        response = text_llm.complete(intent_prompt)
+        selected_source = response.text.strip().lower()
+
+        results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
+        try:
+            if selected_source == 'arxiv':
+                # Extract abstracts and paper summaries (deep content)
+                arxiv_results = self.arxiv_tool.call(query=query, max_results=max_results)
+                results.append(f"**Extracted ArXiv Content:**\n{arxiv_results}")
+            else:
+                # DuckDuckGo returns a list of dicts with 'href', 'title', 'body'
+                web_results = self.duckduckgo_tool.call(query=query, max_results=max_results)
+                if isinstance(web_results, list):
+                    formatted = []
+                    for i, r in enumerate(web_results, 1):
+                        formatted.append(
+                            f"{i}. **{r.get('title', '')}**\n   URL: {r.get('href', '')}\n   {r.get('body', '')}"
+                        )
+                    web_content = "\n".join(formatted)
+                else:
+                    web_content = str(web_results)
+                results.append(f"**Extracted Web Content:**\n{web_content}")
+        except Exception as e:
+            results.append(f"**Extraction failed**: {str(e)}")
         return "\n\n".join(results)
 
 # Initialize router
 intelligent_router = IntelligentSourceRouter()
 
 # Create enhanced research tool
-def enhanced_smart_research_tool(query: str, task_context: str = "", max_results: int = 5) -> str:
+def enhanced_smart_research_tool(query: str, task_context: str = "", max_results: int = 3) -> str:
     full_query = f"{query} {task_context}".strip()
-    return intelligent_router.detect_intent_and_route(full_query)
+    return intelligent_router.detect_intent_and_extract_content(full_query, max_results=max_results)
 
 research_tool = FunctionTool.from_defaults(
     fn=enhanced_smart_research_tool,
-    name="Enhanced Research Tool",
-    description="Intelligent research tool that discriminates between scientific (ArXiv) and general (web) research with deep content extraction"
+    name="Research Tool",
+    description="""Intelligent research specialist that automatically routes between scientific and general sources. Use this tool when you need:
+    
+    **Scientific Research (ArXiv):**
+    - Academic papers, research studies, technical algorithms
+    - Scientific experiments, theories, mathematical concepts
+    - Recent developments in AI, ML, physics, chemistry, etc.
+    
+    **General Research (Web + Content Extraction):**
+    - Current events, news, real-time information
+    - Biographical information, company details, locations
+    - How-to guides, technical documentation
+    - Weather data, sports results, cultural information
+    - Product specifications, reviews, comparisons
+    
+    **Automatic Features:**
+    - Intelligently selects between ArXiv and web search
+    - Extracts full content from web pages (not just snippets)
+    - Provides source attribution and detailed information
+    
+    **When to use:** Questions requiring external knowledge not in your training data, current events, scientific research, or factual verification.
+    
+    **Input format:** Provide the research query with any relevant context."""
 )
 
-def execute_python_code(code: str) -> str:
-    try:
-        safe_globals = {
-            "__builtins__": {
-                "len": len, "str": str, "int": int, "float": float,
-                "list": list, "dict": dict, "sum": sum, "max": max, "min": min,
-                "round": round, "abs": abs, "sorted": sorted
-            },
-            "math": __import__("math"),
-            "datetime": __import__("datetime"),
-            "re": __import__("re")
-        }
-        
-        exec_locals = {}
-        exec(code, safe_globals, exec_locals)
-        
-        if 'result' in exec_locals:
-            return str(exec_locals['result'])
-        else:
-            return "Code executed successfully"
-            
-    except Exception as e:
-        return f"Code execution failed: {str(e)}"
-
-code_execution_tool = FunctionTool.from_defaults(
-    fn=execute_python_code,
-    name="Python Code Execution",
-    description="Execute Python code safely for calculations and data processing"
-)
-
-# Code Agent as ReActAgent
-code_agent = ReActAgent(
+code_agent = CodeActAgent(
     name="CodeAgent",
     description="Advanced calculations, data processing, and final answer synthesis using ReAct reasoning",
     system_prompt="""
     You are a coding and reasoning specialist using ReAct methodology.
-    
+
     For each task:
     1. THINK: Analyze what needs to be calculated or processed
     2. ACT: Execute appropriate code or calculations
     3. OBSERVE: Review results and determine if more work is needed
     4. REPEAT: Continue until you have the final answer
-    
+
     Always show your reasoning process clearly and provide exact answers as required by GAIA.
     """,
-    llm=proj_llm,
-    tools=[code_execution_tool],
-    max_steps = 5
+    llm=proj_llm,  # Your language model instance
+    max_steps=5    # Optional: limit the number of reasoning steps
 )
-
-# Créer des outils à partir des agents
-def analysis_function(query: str, files=None):
-    ctx = Context(analysis_agent)
-    return analysis_agent.run(query, ctx=ctx)
-
-
-def code_function(query: str):
-    ctx = Context(code_agent)
-    return code_agent.run(query, ctx=ctx)
 
 analysis_tool = FunctionTool.from_defaults(
     fn=analysis_function,
     name="AnalysisAgent",
-    description="Advanced multimodal analysis using enhanced RAG"
+    description="""Advanced multimodal document analysis specialist. Use this tool when you need to:
+    
+    **Document Processing:**
+    - Analyze PDF, Word, CSV, or image files provided with the question
+    - Extract specific information from tables, charts, or structured documents
+    - Cross-reference information across multiple documents
+    - Perform semantic search within document collections
+    
+    **Content Analysis:**
+    - Summarize long documents or extract key facts
+    - Find specific data points, numbers, or text within files
+    - Analyze visual content in images (charts, graphs, diagrams)
+    - Compare information between different document sources
+    
+    **When to use:** Questions involving file attachments, document analysis, data extraction from PDFs/images, or when you need to process structured/unstructured content.
+    
+    **Input format:** Provide the query and mention any relevant files or context."""
 )
+
 
 code_tool = FunctionTool.from_defaults(
     fn=code_function,
     name="CodeAgent",
-    description="Advanced calculations and data processing"
+    description="""Advanced computational specialist using ReAct reasoning. Use this tool when you need:
+    
+    **Mathematical Calculations:**
+    - Complex arithmetic, algebra, statistics, probability
+    - Unit conversions, percentage calculations
+    - Financial calculations (interest, loans, investments)
+    - Scientific calculations (physics, chemistry formulas)
+    
+    **Data Processing:**
+    - Parsing and analyzing numerical data
+    - String manipulation and text processing
+    - Date/time calculations and conversions
+    - List operations, sorting, filtering
+    
+    **Logical Operations:**
+    - Step-by-step problem solving with code
+    - Verification of calculations or logic
+    - Pattern analysis and data validation
+    - Algorithm implementation for specific problems
+    
+    **Programming Tasks:**
+    - Code generation for specific computational needs
+    - Data structure manipulation
+    - Regular expression operations
+    
+    **When to use:** Questions requiring precise calculations, data manipulation, logical reasoning with code, or when you need to verify numerical results.
+    
+    **Input format:** Describe the calculation or processing task clearly, including any specific requirements or constraints."""
 )
 
 class EnhancedGAIAAgent:
@@ -428,7 +455,6 @@ class EnhancedGAIAAgent:
             3. OBSERVE: Review results from specialist tools 
             4. REPEAT: Continue until you have the final answer. If you give a final answer, FORMAT: Ensure answer is EXACT GAIA format (number only, word only, etc.)
 
-            
             IMPORTANT: Use tools strategically - only when their specific expertise is needed.
             For simple questions, you can answer directly without using any tools.
             
