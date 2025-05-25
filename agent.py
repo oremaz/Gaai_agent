@@ -19,7 +19,6 @@ from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core import Settings
-from llama_index.core.agent.workflow import CodeActAgent
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from llama_index.llms.huggingface import HuggingFaceLLM
@@ -488,6 +487,15 @@ code_agent = ReActAgent(
     tools=[code_execution_tool],
     max_steps=5  
 )
+
+def analysis_function(query: str, files=None):
+    ctx = Context(analysis_agent)
+    return analysis_agent.run(query, ctx=ctx)
+
+def code_function(query: str):
+    ctx = Context(code_agent)
+    return code_agent.run(query, ctx=ctx)
+
 
 analysis_tool = FunctionTool.from_defaults(
     fn=analysis_function,
