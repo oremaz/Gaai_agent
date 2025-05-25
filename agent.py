@@ -25,8 +25,9 @@ import requests
 import logging
 from llama_index.core.workflow import Context
 from llama_index.core.agent.workflow import AgentStream
-from llama_index.readers.web import TrafilaturaWebReader
-from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
+from llama_index.readers_web import TrafilaturaWebReader
+from llama_index_readers_youtube_transcript import YoutubeTranscriptReader
+
 
 
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
