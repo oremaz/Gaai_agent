@@ -11,7 +11,6 @@ import os
 from typing import List, Dict, Any
 from llama_index.tools.arxiv import ArxivToolSpec
 from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
-import duckduckgo_search as ddg
 import re
 from llama_index.core.agent.workflow import ReActAgent
 import wandb
