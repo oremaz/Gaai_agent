@@ -235,7 +235,8 @@ analysis_agent = FunctionAgent(
     """,
     llm=proj_llm,
     tools=[enhanced_rag_tool, cross_document_tool],
-    max_steps=5
+    max_steps=5, 
+    verbose = True
 )
 
 class IntelligentSourceRouter:
@@ -485,7 +486,8 @@ code_agent = ReActAgent(
     """,
     llm=proj_llm,
     tools=[code_execution_tool],
-    max_steps=5  
+    max_steps=5, 
+    verbose = True
 )
 
 def analysis_function(query: str, files=None):
@@ -573,20 +575,50 @@ class EnhancedGAIAAgent:
             1. THINK: Analyze the GAIA question thoroughly            
             2. ACT: Use your specialist tools IF RELEVANT            
             3. OBSERVE: Review results from specialist tools 
-            4. REPEAT: Continue until you have the final answer. If you give a final answer, FORMAT: Ensure answer is EXACT GAIA format (number only, word only, etc.)
-
-            IMPORTANT: Use tools strategically - only when their specific expertise is needed.
-            For simple questions, you can answer directly without using any tools.
+            4. REPEAT: Continue until you have the final answer.
             
             CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format:
-            - For numbers: provide only the number (e.g., "42" or "3.14")
-            - For strings: provide only the exact string (e.g., "Paris" or "Einstein")
-            - For lists: use comma separation (e.g., "apple, banana, orange")
-            - NO explanations, NO additional text, ONLY the precise answer
-            """,
+            CRITICAL ANSWER FORMATTING EXAMPLES:
+            **Numbers (no commas, no units unless specified):**
+            Question: "How many research papers were published by the university between 2010 and 2020?"
+            CORRECT: 156
+            WRONG: "The answer is 156 papers" or "156 papers" or "one hundred fifty-six"
+            
+            **Strings (exact words, no articles, no explanations):**
+            Question: "What is the last name of the software engineer mentioned in the report?"
+            CORRECT: Martinez
+            WRONG: "The last name is Martinez" or "Dr. Martinez" or "martinez"
+            
+            **Lists (comma-separated with spaces, alphabetized when requested):**
+            Question: "List the programming languages from this job description, alphabetized:"
+            CORRECT: C++, Java, JavaScript, Python, Ruby, TypeScript
+            WRONG: "C++,Java,JavaScript" or "1. C++ 2. Java" or "[C++, Java]"
+            
+            **First/Last names only:**
+            Question: "Give only the first name of the developer who created the framework."
+            CORRECT: Sarah
+            WRONG: "Sarah Johnson" or "The first name is Sarah"
+            
+            **Country codes:**
+            Question: "Give the ISO country code as your answer."
+            CORRECT: FRA
+            WRONG: "The ISO code is FRA" or "France (FRA)"
+            
+            **Technical notation:**
+            Question: "Provide your response in standard notation."
+            CORRECT: 3.14e+8
+            WRONG: "The value is 3.14e+8" or "314 million"
+            
+            ABSOLUTE RULES:
+            - NO explanations, NO additional text, NO units unless specifically requested
+            - NO phrases like "The answer is", "Based on the analysis", "According to"
+            - NO brackets, quotes, or formatting around the answer
+            - NO trailing periods or punctuation unless part of the answer
+            - If you cannot determine the answer, respond ONLY with: Unable to determine""",
             llm=proj_llm,
             tools=[analysis_tool, research_tool, code_tool], 
-            max_steps = 10
+            max_steps = 10, 
+            verbose = True
         )
     
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
