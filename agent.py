@@ -254,7 +254,7 @@ class IntelligentSourceRouter:
         - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
         Respond with ONLY "arxiv" or "web_search".
         """
-        response = text_llm.complete(intent_prompt)
+        response = proj_llm.complete(intent_prompt)
         selected_source = response.text.strip().lower()
 
         results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
@@ -293,7 +293,7 @@ class IntelligentSourceRouter:
         - web_search: For all other information (current events, general facts, weather, how-to guides, etc.)
         Respond with ONLY "arxiv" or "web_search".
         """
-        response = text_llm.complete(intent_prompt)
+        response = proj_llm.complete(intent_prompt)
         selected_source = response.text.strip().lower()
 
         results = [f"**Query**: {query}", f"**Selected Source**: {selected_source}", "="*50]
