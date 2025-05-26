@@ -325,19 +325,9 @@ safe_globals = {
     "gzip": __import__("gzip"),
     "base64": __import__("base64"),
     "hashlib": __import__("hashlib"),
-    "uuid": __import__("uuid"),
     
     # Scientific Computing
     "sympy": __import__("sympy"),
-    "networkx": __import__("networkx"),
-    
-    # Database
-    "sqlite3": __import__("sqlite3"),
-    
-    # Parallel Processing
-    "multiprocessing": __import__("multiprocessing"),
-    "threading": __import__("threading"),
-    "concurrent": __import__("concurrent"),
 }
 
 def execute_python_code(code: str) -> str:
