@@ -221,29 +221,28 @@ def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
 
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
-base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
 # 2. Define a wrapper function to post-process the output.
 def search_and_extract_top_url(query: str) -> str:
     """
     Takes a search query, uses the base DuckDuckGo search tool to get results,
     and then parses the output to extract and return only the first URL.
-
     Args:
         query: The natural language search query.
-
     Returns:
         A string containing the first URL found, or an error message if none is found.
     """
     # Call the base tool to get the search results as text
-    search_results = base_duckduckgo_tool(query)
+    search_results = base_duckduckgo_tool(query, max_results = 1)
+    print(search_results)
     
     # Use a regular expression to find the first URL in the text output
     # The \S+ pattern matches any sequence of non-whitespace characters
     url_match = re.search(r"https?://\S+", str(search_results))
     
     if url_match:
-        return url_match.group(0)
+        return url_match.group(0)[:-2]
     else:
         return "No URL could be extracted from the search results."
 
