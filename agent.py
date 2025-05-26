@@ -319,14 +319,15 @@ forced_rag_pipeline = create_forced_rag_pipeline()
 # Remplacer les tools individuels par le pipeline
 information_retrieval_tool = FunctionTool.from_defaults(
     fn=lambda input_path: forced_rag_pipeline.run(input_path),
-    name="process_docs_urls_tool",
+    name="information_retrieval_tool",
     description=(
-        "This tool is the PRIMARY and MOST EFFECTIVE method for extracting and retrieving information from URLs or documents. "
-        "It AUTOMATICALLY processes any given web pages, PDFs, or document files by first using read_and_parse to fully extract and parse content. "
+        "This tool is the PRIMARY and MOST EFFECTIVE method for answering user queries by extracting and retrieving information from URLs or documents. "
+        "When given a document or URL, it AUTOMATICALLY processes the content and DIRECTLY ANSWERS your specific question or information need. "
+        "The tool first uses read_and_parse to fully extract and parse content from web pages, PDFs, or document files. "
         "Then, it creates a powerful Retrieval Augmented Generation (RAG) query engine optimized for semantic search and precise information retrieval. "
-        "Finally, it applies the RAG engine to answer queries directly, providing efficient and accurate results. "
-        "This tool is specifically designed to handle diverse document types and web content, ensuring superior extraction and querying capabilities. "
-        "Avoid manual page access or ad-hoc parsing; always use this tool for best performance and reliability in information extraction and question answering."
+        "Most importantly, it IMMEDIATELY applies this RAG engine to provide direct, accurate answers to your query, eliminating the need for manual searching. "
+        "This tool is specifically designed to transform user questions into precise answers by leveraging advanced document understanding and query processing capabilities. "
+        "Instead of manual page access or ad-hoc parsing, use this tool to get immediate, reliable answers to your information retrieval needs."
     )
 )
 
