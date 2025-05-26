@@ -564,10 +564,10 @@ class EnhancedGAIAAgent:
         
         # Initialize only the tools that are actually defined in the file
         self.available_tools = [
-            extract_url_tool, 
+            extract_url_tool,
+            process_docs_urls_tool,
             code_execution_tool,
             generate_code_tool,
-            process_docs_urls_tool
         ]
                 
         # Create main coordinator using only defined tools
