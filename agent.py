@@ -551,12 +551,7 @@ Available tools:
 2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
 3. **generate_code_tool** - Generate Python code for complex computations
 4. **code_execution_tool** - Execute Python code safely
-
-WORKFLOW:
-1. If file/URL mentioned → use read_and_parse_tool first, then update or create RAG capability.
-2. If documents loaded → create RAG capability for querying
-3. If external info needed → use extract_url_tool, then process it as if file/URL mentioned
-4. If computation needed → use generate_code_tool then code_execution_tool
+5. **create_dynamic_rag_tool** - Create RAG tool from parsed files to improve the information retrieval.
 """,
             llm=proj_llm,
             tools=self.available_tools,
