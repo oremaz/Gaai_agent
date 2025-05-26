@@ -316,9 +316,11 @@ def create_forced_rag_pipeline():
 
 forced_rag_pipeline = create_forced_rag_pipeline()
 
+def forced_rag_pipeline_fn(input_path, query) : 
+    return forced_rag_pipeline.run(input_path,query)
 # Remplacer les tools individuels par le pipeline
 information_retrieval_tool = FunctionTool.from_defaults(
-    fn=lambda input_path: forced_rag_pipeline.run(input_path),
+    fn=forced_rag_pipeline_fn,
     name="information_retrieval_tool",
     description=(
         "This tool is the PRIMARY and MOST EFFECTIVE method for answering user queries by extracting and retrieving information from URLs or documents. "
