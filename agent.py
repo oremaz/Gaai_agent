@@ -64,7 +64,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
 logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
-model_id = "mistralai/Mistral-7B-Instruct-v0.3" 
+model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
@@ -266,17 +266,28 @@ extract_url_tool = FunctionTool.from_defaults(
     )
 )
 
-# Créer un pipeline forcé read_and_parse → create_rag
+from llama_index.core.query_pipeline import QueryPipeline, FnComponent
+
+# Convertir vos fonctions en composants de pipeline
+def read_and_parse_fn(input_path: str):
+    """Function compatible avec QueryPipeline"""
+    return read_and_parse_content(input_path)
+
+def create_rag_fn(documents):
+    """Function compatible avec QueryPipeline"""
+    return create_rag_tool(documents)
+
+# Créer le pipeline avec FnComponent
 def create_forced_rag_pipeline():
     pipeline = QueryPipeline(verbose=True)
     
-    # Ajouter les modules
+    # Utiliser FnComponent au lieu de FunctionTool
     pipeline.add_modules({
-        "read_and_parse": read_and_parse_tool,
-        "create_rag": create_rag_tool,
+        "read_and_parse": FnComponent(fn=read_and_parse_fn),
+        "create_rag": FnComponent(fn=create_rag_fn),
     })
     
-    # Forcer la liaison : read_and_parse → create_rag
+    # Forcer la liaison
     pipeline.add_link("read_and_parse", "create_rag")
     
     return pipeline
@@ -388,20 +399,7 @@ from llama_index.llms.huggingface import HuggingFaceLLM
 # --- 1. Initialize a dedicated LLM for Code Generation ---
 # It's good practice to use a model specifically fine-tuned for coding.
 # This model is loaded only once for efficiency.
-try:
-    code_llm = HuggingFaceLLM(
-        model_name="Qwen/Qwen2.5-Coder-3B",
-        tokenizer_name="Qwen/Qwen2.5-Coder-3B",
-        device_map="auto",
-        model_kwargs={"torch_dtype": "auto"},
-        # Set generation parameters for precise, non-creative code output
-        generate_kwargs={"temperature": 0.1, "do_sample": False}
-    )
-except Exception as e:
-    print(f"Error initializing code generation model: {e}")
-    print("Code generation tool will not be available.")
-    code_llm = None
-
+code_llm = proj_llm
 
 def generate_python_code(query: str) -> str:
     """
