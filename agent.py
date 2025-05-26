@@ -63,379 +63,209 @@ Settings.llm = proj_llm
 Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
 
+import os
+from typing import List
+from urllib.parse import urlparse
 
+from llama_index.core.tools import FunctionTool
+from llama_index.core import Document
 
-class EnhancedRAGQueryEngine:
-    def __init__(self, task_context: str = ""):
-        self.task_context = task_context
-        self.embed_model = embed_model
-        self.reranker = SentenceTransformerRerank(model="cross-encoder/ms-marco-MiniLM-L-2-v2", top_n=5)
-        
-        self.readers = {
-            '.pdf': PDFReader(),
-            '.docx': DocxReader(),
-            '.doc': DocxReader(),
-            '.csv': CSVReader(),
-            '.txt': lambda file_path: [Document(text=open(file_path, 'r', encoding='utf-8').read())],
-            '.jpg': ImageReader(),
-            '.jpeg': ImageReader(),
-            '.png': ImageReader(), 
-            'web': TrafilaturaWebReader(),
-            'youtube': YoutubeTranscriptReader()
-        }
-        
-        self.sentence_window_parser = SentenceWindowNodeParser.from_defaults(
-            window_size=3,
-            window_metadata_key="window",
-            original_text_metadata_key="original_text"
-        )
-        
-        self.hierarchical_parser = HierarchicalNodeParser.from_defaults(
-            chunk_sizes=[2048, 512, 128]
-        )
-    
-    def load_and_process_documents(self, file_paths: List[str]) -> List[Document]:
-        documents = []
-        
-        for file_path in file_paths:
-            file_ext = os.path.splitext(file_path)[1].lower()
-            
-            try:
-                if file_ext in self.readers:
-                    reader = self.readers[file_ext]
-                    if callable(reader):
-                        docs = reader(file_path)
-                    else:
-                        docs = reader.load_data(file=file_path)
-                    
-                    # Ensure docs is a list
-                    if not isinstance(docs, list):
-                        docs = [docs]
-                    
-                    # Add metadata to all documents
-                    for doc in docs:
-                        if hasattr(doc, 'metadata'):
-                            doc.metadata.update({
-                                "file_path": file_path,
-                                "file_type": file_ext[1:],
-                                "task_context": self.task_context
-                            })
-                    documents.extend(docs)
-                        
-            except Exception as e:
-                # Fallback to text reading
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    documents.append(Document(
-                        text=content,
-                        metadata={"file_path": file_path, "file_type": "text", "error": str(e)}
-                    ))
-                except Exception as fallback_error:
-                    print(f"Failed to process {file_path}: {e}, Fallback error: {fallback_error}")
-        
-        return documents
-    
-    def create_advanced_index(self, documents: List[Document], use_hierarchical: bool = False) -> VectorStoreIndex:
-        if use_hierarchical or len(documents) > 10:
-            nodes = self.hierarchical_parser.get_nodes_from_documents(documents)
+# --- Import all required official LlamaIndex Readers ---
+from llama_index.readers.file import (
+    PDFReader,
+    DocxReader,
+    CSVReader,
+    PandasExcelReader,
+    ImageReader,
+)
+from llama_index.readers.json import JSONReader
+from llama_index.readers.web import TrafilaturaWebReader
+from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
+from llama_index.readers.audiotranscribe.openai import OpenAIAudioTranscriptReader
+
+def read_and_parse_content(input_path: str) -> List[Document]:
+    """
+    Reads and parses content from a file path or URL into Document objects.
+    It automatically detects the input type and uses the appropriate LlamaIndex reader.
+
+    Args:
+        input_path: A local file path or a web URL.
+
+    Returns:
+        A list of LlamaIndex Document objects with the extracted text.
+    """
+    # --- Completed readers map for various local file types ---
+    readers_map = {
+        # Documents
+        '.pdf': PDFReader(),
+        '.docx': DocxReader(),
+        '.doc': DocxReader(),
+        # Data files
+        '.csv': CSVReader(),
+        '.json': JSONReader(),
+        '.xlsx': PandasExcelReader(),
+        # Media files
+        '.jpg': ImageReader(),
+        '.jpeg': ImageReader(),
+        '.png': ImageReader(),
+        '.mp3': OpenAIAudioTranscriptReader(),
+    }
+
+    # --- URL Handling ---
+    if input_path.startswith("http"):
+        if "https://www.youtube.com/watch?v=2N-rwsa5lEw2" in urlparse(input_path).netloc or "https://www.youtube.com/watch?v=2N-rwsa5lEw3" in urlparse(input_path).netloc:
+            loader = YoutubeTranscriptReader()
+            documents = loader.load_data(youtubelinks=[input_path])
         else:
-            nodes = self.sentence_window_parser.get_nodes_from_documents(documents)
-        
-        index = VectorStoreIndex(
-            nodes,
-            embed_model=self.embed_model
-        )
-        
-        return index
+            loader = TrafilaturaWebReader()
+            documents = loader.load_data(urls=[input_path])
     
-    def create_context_aware_query_engine(self, index: VectorStoreIndex):
-        retriever = VectorIndexRetriever(
-            index=index,
-            similarity_top_k=10
-        )
+    # --- Local File Handling ---
+    else:
+        if not os.path.exists(input_path):
+            return [Document(text=f"Error: File not found at {input_path}")]
         
-        query_engine = RetrieverQueryEngine(
-            retriever=retriever,
-            node_postprocessors=[self.reranker],
-            llm=proj_llm
-        )
-        
-        return query_engine
+        file_extension = os.path.splitext(input_path)[1].lower()
 
-class HybridWebRAGTool:
-    def __init__(self, rag_engine: EnhancedRAGQueryEngine):
-        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
-        self.rag_engine = rag_engine
-        
-    def is_youtube_url(self, url: str) -> bool:
-        """Check if URL is a YouTube video"""
-        return 'youtube.com/watch' in url or 'youtu.be/' in url
-        
-    def search_and_analyze(self, query: str, max_results: int = 3) -> str:
-        """Search web and analyze content with RAG, including YouTube support"""
-        
-        try:
-            # Step 1: Get URLs from DuckDuckGo
-            search_results = self.duckduckgo_tool.call(query=query, max_results=max_results)
-            
-            if isinstance(search_results, list):
-                urls = [r.get('href', '') for r in search_results if r.get('href')]
-            else:
-                return f"Search failed: {search_results}"
-            
-            if not urls:
-                return "No URLs found in search results"
-            
-            # Step 2: Process URLs based on type
-            web_documents = []
-            youtube_urls = []
-            regular_urls = []
-            
-            # Separate YouTube URLs from regular web URLs
-            for url in urls:
-                if self.is_youtube_url(url):
-                    youtube_urls.append(url)
-                else:
-                    regular_urls.append(url)
-            
-            # Process YouTube videos
-            if youtube_urls:
-                try:
-                    youtube_docs = self.rag_engine.readers['youtube'].load_data(youtube_urls)
-                    if isinstance(youtube_docs, list):
-                        web_documents.extend(youtube_docs)
-                    else:
-                        web_documents.append(youtube_docs)
-                except Exception as e:
-                    print(f"Failed to load YouTube videos: {e}")
-            
-            # Process regular web pages
-            for url in regular_urls:
-                try:
-                    docs = self.rag_engine.readers['web'].load_data([url])
-                    if isinstance(docs, list):
-                        web_documents.extend(docs)
-                    else:
-                        web_documents.append(docs)
-                except Exception as e:
-                    print(f"Failed to load {url}: {e}")
-                    continue
-            
-            if not web_documents:
-                return "No content could be extracted from URLs"
-            
-            # Step 3: Create temporary index and query
-            temp_index = self.rag_engine.create_advanced_index(web_documents)
-            
-            # Step 4: Query the indexed content
-            query_engine = self.rag_engine.create_context_aware_query_engine(temp_index)
-            
-            response = query_engine.query(query)
-            
-            # Add source information
-            source_info = []
-            if youtube_urls:
-                source_info.append(f"YouTube videos: {len(youtube_urls)}")
-            if regular_urls:
-                source_info.append(f"Web pages: {len(regular_urls)}")
-            
-            return f"{str(response)}\n\nSources analyzed: {', '.join(source_info)}"
-            
-        except Exception as e:
-            return f"Error in hybrid search: {str(e)}"
-
-# Create the research tool function
-def research_tool_function(query: str) -> str:
-    """Combines DuckDuckGo search with RAG analysis of web content and YouTube videos"""
-    try:
-        rag_engine = EnhancedRAGQueryEngine()
-        hybrid_tool = HybridWebRAGTool(rag_engine)
-        return hybrid_tool.search_and_analyze(query)
-    except Exception as e:
-        return f"Research tool error: {str(e)}"
-
-# Create the research tool for your agent
-research_tool = FunctionTool.from_defaults(
-    fn=research_tool_function,
-    name="research_tool",
-    description="""Advanced research tool that combines web search with RAG analysis, supporting both web pages and YouTube videos, with context-aware processing.
-
-**When to Use:**
-- Questions requiring external knowledge beyond training data
-- Current or recent information (post-training cutoff)
-- Scientific research requiring academic sources
-- Factual verification of specific claims
-- Any question where search results could provide the exact answer
-- Research involving video content and tutorials
-- Complex queries needing synthesis of multiple sources
-
-**Advantages:**
-- Full content analysis from both web and video sources
-- Automatic content type detection and processing
-- Semantic search within retrieved content
-- Reranking for relevance across all source types
-- Comprehensive synthesis of multimedia information"""
-)
-
-def comprehensive_rag_analysis(file_paths: List[str], query: str, task_context: str = "") -> str:
-    try:
-        rag_engine = EnhancedRAGQueryEngine(task_context)
-        documents = rag_engine.load_and_process_documents(file_paths)
-        
-        if not documents:
-            return "No documents could be processed successfully."
-        
-        total_text_length = sum(len(doc.text) for doc in documents)
-        use_hierarchical = total_text_length > 50000 or len(documents) > 5
-        
-        index = rag_engine.create_advanced_index(documents, use_hierarchical)
-        query_engine = rag_engine.create_context_aware_query_engine(index)
-        
-        enhanced_query = f"""
-        Task Context: {task_context}
-        Original Query: {query}
-        
-        Please analyze the provided documents and answer the query with precise, factual information.
-        """
-        
-        response = query_engine.query(enhanced_query)
-        
-        result = f"**RAG Analysis Results:**\n\n"
-        result += f"**Documents Processed:** {len(documents)}\n"
-        result += f"**Answer:**\n{response.response}\n\n"
-        
-        return result
-        
-    except Exception as e:
-        return f"RAG analysis failed: {str(e)}"
-
-def cross_document_analysis(file_paths: List[str], query: str, task_context: str = "") -> str:
-    try:
-        rag_engine = EnhancedRAGQueryEngine(task_context)
-        all_documents = []
-        document_groups = {}
-        
-        for file_path in file_paths:
-            docs = rag_engine.load_and_process_documents([file_path])
-            doc_key = os.path.basename(file_path)
-            document_groups[doc_key] = docs
-            
-            for doc in docs:
-                doc.metadata.update({
-                    "document_group": doc_key,
-                    "total_documents": len(file_paths)
-                })
-            all_documents.extend(docs)
-        
-        index = rag_engine.create_advanced_index(all_documents, use_hierarchical=True)
-        query_engine = rag_engine.create_context_aware_query_engine(index)
-        
-        response = query_engine.query(f"Task: {task_context}\nQuery: {query}")
-        
-        result = f"**Cross-Document Analysis:**\n"
-        result += f"**Documents:** {list(document_groups.keys())}\n"
-        result += f"**Answer:**\n{response.response}\n"
-        
-        return result
-        
-    except Exception as e:
-        return f"Cross-document analysis failed: {str(e)}"
-
-# Create tools
-enhanced_rag_tool = FunctionTool.from_defaults(
-    fn=comprehensive_rag_analysis,
-    name="Enhanced RAG Analysis",
-    description="Comprehensive document analysis using advanced RAG with context-aware processing"
-)
-
-cross_document_tool = FunctionTool.from_defaults(
-    fn=cross_document_analysis,
-    name="Cross-Document Analysis", 
-    description="Advanced analysis across multiple documents with cross-referencing capabilities"
-)
-
-# Analysis Agent
-analysis_agent = FunctionAgent(
-    name="AnalysisAgent",
-    description="Advanced multimodal analysis using enhanced RAG and cross-document capabilities",
-    system_prompt="""
-    You are an advanced analysis specialist with access to:
-    - Enhanced RAG with hybrid search and reranking
-    - Multi-format document processing (PDF, Word, CSV, images, text)
-    - Cross-document analysis and synthesis
-    - Context-aware query processing
+        if file_extension in readers_map:
+            loader = readers_map[file_extension]
+            documents = loader.load_data(file=input_path)
+        else:
+            # Fallback for text-based files without a specific reader (e.g., .py, .txt, .md)
+            try:
+                with open(input_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                documents = [Document(text=content, metadata={"source": input_path})]
+            except Exception as e:
+                return [Document(text=f"Error reading file as plain text: {e}")]
     
-    Your capabilities:
-    1. Process multiple file types simultaneously
-    2. Perform semantic search across document collections
-    3. Cross-reference information between documents
-    4. Extract precise information with source attribution
-    5. Handle both text and visual content analysis
-    
-    Always consider the task context and provide precise, well-sourced answers.
-    """,
-    llm=proj_llm,
-    tools=[enhanced_rag_tool, cross_document_tool],
-    max_steps=5, 
-    verbose = True
+    # Add the source path to metadata for traceability
+    for doc in documents:
+        doc.metadata["source"] = input_path
+        
+    return documents
+
+# --- Create the final LlamaIndex Tool from the completed function ---
+read_and_parse_tool = FunctionTool.from_defaults(
+    fn=read_and_parse_content,
+    name="read_and_parse_tool",
+    description=(
+        "Use this tool to read and extract content from any given file or URL. "
+        "It handles PDF, DOCX, CSV, JSON, XLSX, and image files, as well as web pages, "
+        "YouTube videos (transcripts), and MP3 audio (transcripts). It also reads plain text "
+        "from files like .py or .txt. The input MUST be a single valid file path or a URL."
+    )
 )
 
-class IntelligentSourceRouter:
-    def __init__(self):
-        self.arxiv_tool = ArxivToolSpec().to_tool_list()[0]
-        self.duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+from typing import List
+from llama_index.core import VectorStoreIndex, Document, Settings
+from llama_index.core.tools import QueryEngineTool
+from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
+from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core.query_engine import RetrieverQueryEngine
 
-    def route_and_search(self, query: str) -> str:
-        """Simple routing between academic and general search - returns URLs only"""
-        
-        # Quick intent detection
-        intent_prompt = f"""
-        Is this question about scientific research or general information?
-        Question: "{query}"
-        
-        Answer "arxiv" for scientific/academic topics, "web" for everything else.
-        """
-        
-        response = proj_llm.complete(intent_prompt)
-        source = "arxiv" if "arxiv" in response.text.lower() else "web"
-        
-        try:
-            if source == "arxiv":
-                # ArXiv results typically contain URLs in the response text
-                arxiv_result = self.arxiv_tool.call(query=query)
-                # Extract URLs from ArXiv response (you may need to parse this based on actual format)
-                return str(arxiv_result)  # ArXiv tool should return URLs
-            else:
-                result = self.duckduckgo_tool.call(query=query)
-                if isinstance(result, list):
-                    # Extract only URLs from search results
-                    urls = [r.get('href', '') for r in result if r.get('href')]
-                    return "\n".join(urls)
-                return str(result)
-        except Exception as e:
-            return f"Search failed: {str(e)}"
+def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
+    """
+    Creates a RAG query engine tool from a list of documents using advanced components.
+    Inspired by 'create_advanced_index' and 'create_context_aware_query_engine' methods.
 
-# Simple research function
-def research_tool_function(query: str) -> str:
-    """Returns URLs for queries using intelligent source routing"""
-    router = IntelligentSourceRouter()
-    return router.route_and_search(query)
+    Args:
+        documents: A list of LlamaIndex Document objects from the read_and_parse_tool.
 
-# Clean tool definition
-research_tool = FunctionTool.from_defaults(
-    fn=research_tool_function,
-    name="research_tool",
-    description="""Intelligent URL finder that routes between academic (ArXiv) and general (web) search sources to return relevant URLs.
+    Returns:
+        A QueryEngineTool configured for the agent to use in the current task.
+    """
+    if not documents:
+        return None
 
-**When to Use:**
-- Questions requiring external knowledge beyond training data
-- Current or recent information (post-training cutoff)  
-- Scientific research requiring academic sources
-- Factual verification of specific claims
-- Any question where you need URLs to relevant sources
+    # --- 1. Node Parsing (from your 'create_advanced_index' logic) ---
+    # Using the exact parsers and logic you defined.
+    hierarchical_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=[2048, 512, 128])
+    sentence_window_parser = SentenceWindowNodeParser.from_defaults(
+        window_size=3,
+        window_metadata_key="window",
+        original_text_metadata_key="original_text",
+    )
+    
+    # Choose parser based on document count
+    if len(documents) > 5: # Heuristic for using hierarchical parser
+        nodes = hierarchical_parser.get_nodes_from_documents(documents)
+    else:
+        nodes = sentence_window_parser.get_nodes_from_documents(documents)
 
-Simply provide your question and get URLs to visit for further reading."""
+    # --- 2. Index Creation ---
+    # Assumes Settings.embed_model is configured globally as in your snippet
+    index = VectorStoreIndex(nodes)
+
+    # --- 3. Query Engine Creation (from your 'create_context_aware_query_engine' logic) ---
+    # Using the exact reranker you specified
+    reranker = SentenceTransformerRerank(
+        model="cross-encoder/ms-marco-MiniLM-L-2-v2", 
+        top_n=5
+    )
+    
+    query_engine = index.as_query_engine(
+        similarity_top_k=10,
+        node_postprocessors=[reranker],
+        # Assumes Settings.llm is configured globally
+    )
+    
+    # --- 4. Wrap the Query Engine in a Tool ---
+    rag_engine_tool = QueryEngineTool.from_defaults(
+        query_engine=query_engine,
+        name="rag_engine_tool",
+        description=(
+            "Use this tool to ask questions and query the content of documents that have already "
+            "been loaded. This is your primary way to find answers from the provided context. "
+            "The input is a natural language question about the documents' content."
+        )
+    )
+    
+    return rag_engine_tool
+
+
+import re
+from llama_index.core.tools import FunctionTool
+from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
+
+# 1. Create the base DuckDuckGo search tool from the official spec.
+# This tool returns text summaries of search results, not just URLs.
+base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[0]
+
+# 2. Define a wrapper function to post-process the output.
+def search_and_extract_top_url(query: str) -> str:
+    """
+    Takes a search query, uses the base DuckDuckGo search tool to get results,
+    and then parses the output to extract and return only the first URL.
+
+    Args:
+        query: The natural language search query.
+
+    Returns:
+        A string containing the first URL found, or an error message if none is found.
+    """
+    # Call the base tool to get the search results as text
+    search_results = base_duckduckgo_tool(query)
+    
+    # Use a regular expression to find the first URL in the text output
+    # The \S+ pattern matches any sequence of non-whitespace characters
+    url_match = re.search(r"https?://\S+", str(search_results))
+    
+    if url_match:
+        return url_match.group(0)
+    else:
+        return "No URL could be extracted from the search results."
+
+# 3. Create the final, customized FunctionTool for the agent.
+# This is the tool you will actually give to your agent.
+extract_url_tool = FunctionTool.from_defaults(
+    fn=search_and_extract_top_url,
+    name="extract_url_tool",
+    description=(
+        "Use this tool ONLY when you need to find a relevant URL to answer a question but no "
+        "specific file, document, or URL has been provided. It takes a search query as input "
+        "and returns a single, relevant URL."
+    )
 )
 
 def execute_python_code(code: str) -> str:
@@ -539,97 +369,79 @@ name="Python Code Execution",
 description="Execute Python code safely for calculations and data processing"
 )
 
-# Code Agent as ReActAgent with explicit code generation
-code_agent = ReActAgent(
-    name="CodeAgent",
-    description="Advanced calculations, data processing using code generation and execution",
-    system_prompt="""
-    You are a coding specialist. For EVERY computational task:
-    
-    1. THINK: Analyze what calculation/processing is needed
-    2. GENERATE CODE: Write Python code to solve the problem
-    3. EXECUTE: Use the Python Code Execution tool to run your code
-    4. OBSERVE: Check the results
-    5. REPEAT if needed
-    
-    ALWAYS write code for:
-    - Mathematical calculations
-    - Data processing
-    - Numerical analysis
-    - Text processing
-    - Any computational task
-    
-    Example workflow:
-    Question: "What is 15 * 23 + 7?"
-    
-    Thought: I need to calculate 15 * 23 + 7
-    Action: Python Code Execution
-    Action Input: {"code": "result = 15 * 23 + 7\nprint(f'The answer is: {result}')"}
-    
-    Store your final answer in a variable called 'result'.
-    """,
-    llm=proj_llm,
-    tools=[code_execution_tool],
-    max_steps=5,
-    verbose=True, 
-    callback_manager=callback_manager,
+import re
+from llama_index.core.tools import FunctionTool
+from llama_index.llms.huggingface import HuggingFaceLLM
+
+# --- 1. Initialize a dedicated LLM for Code Generation ---
+# It's good practice to use a model specifically fine-tuned for coding.
+# This model is loaded only once for efficiency.
+try:
+    code_llm = HuggingFaceLLM(
+        model_name="Qwen/Qwen2.5-Coder-7B",
+        tokenizer_name="Qwen/Qwen2.5-Coder-7B",
+        device_map="auto",
+        model_kwargs={"torch_dtype": "auto"},
+        # Set generation parameters for precise, non-creative code output
+        generate_kwargs={"temperature": 0.0, "do_sample": False}
+    )
+except Exception as e:
+    print(f"Error initializing code generation model: {e}")
+    print("Code generation tool will not be available.")
+    code_llm = None
+
+
+def generate_python_code(query: str) -> str:
+    """
+    Generates executable Python code based on a natural language query.
+
+    Args:
+        query: A detailed description of the desired functionality for the Python code.
+
+    Returns:
+        A string containing only the generated Python code, ready for execution.
+    """
+    if not code_llm:
+        return "Error: Code generation model is not available."
+
+    # --- 2. Create a precise prompt for the code model ---
+    # This prompt explicitly asks for only code, no explanations.
+    prompt = f"""
+Your task is to generate ONLY the Python code for the following request.
+Do not include any explanations, introductory text, or markdown formatting like '```python'.
+The output must be a single, clean block of Python code.
+
+Request: "{query}"
+
+Python Code:
+"""
+
+    # --- 3. Generate the response and post-process it ---
+    response = code_llm.complete(prompt)
+    raw_code = str(response)
+
+    # --- 4. Clean the output to ensure it's pure code ---
+    # Models often wrap code in markdown fences, this removes them.
+    code_match = re.search(r"```(?:python)?\n(.*)```", raw_code, re.DOTALL)
+    if code_match:
+        # Extract the code from within the markdown block
+        return code_match.group(1).strip()
+    else:
+        # If no markdown, assume the model followed instructions and return the text directly
+        return raw_code.strip()
+
+
+# --- 5. Create the LlamaIndex Tool from the function ---
+generate_code_tool = FunctionTool.from_defaults(
+    fn=generate_python_code,
+    name="generate_python_code_tool",
+    description=(
+        "Use this tool to generate executable Python code based on a natural language description of a task. "
+        "The input should be a clear and specific request for what the code should do (e.g., 'a function to "
+        "calculate the nth Fibonacci number'). The tool returns a string containing only the Python code."
+    )
 )
 
-def analysis_function(query: str, files=None):
-    ctx = Context(analysis_agent)
-    return analysis_agent.run(query, ctx=ctx)
-
-def code_function(query: str):
-    ctx = Context(code_agent)
-    return code_agent.run(query, ctx=ctx)
-
-
-analysis_tool = FunctionTool.from_defaults(
-    fn=analysis_function,
-    name="AnalysisAgent",
-    description="""Advanced multimodal document analysis specialist. Use this tool at least when you need to:
-    
-    **Document Processing:**
-    - Analyze PDF, Word, CSV, or image files provided with the question
-    - Extract specific information from tables, charts, or structured documents
-    - Cross-reference information across multiple documents
-    - Perform semantic search within document collections
-    
-    **Content Analysis:**
-    - Summarize long documents or extract key facts
-    - Find specific data points, numbers, or text within files
-    - Analyze visual content in images (charts, graphs, diagrams)
-    - Compare information between different document sources
-    
-    **When to use:** Questions involving file attachments, document analysis, data extraction from PDFs/images, or when you need to process structured/unstructured content.
-    
-    **Input format:** Provide the query and mention any relevant files or context."""
-)
-
-code_tool = FunctionTool.from_defaults(
-    fn=code_function,
-    name="CodeAgent",
-    description="""Advanced computational specialist using ReAct reasoning. Use this tool at least when you need:
-    
-    **Core Capabilities:**
-    - **Autonomous Code Generation**: Writes Python code from scratch to solve computational problems
-    - **Multi-step Problem Solving**: Breaks complex tasks into manageable coding steps
-    - **Self-debugging**: Identifies and fixes errors through iterative refinement
-    - **Library Integration**: Leverages numpy, pandas, matplotlib, scipy, sklearn, and other scientific libraries
-    - **Result Verification**: Validates outputs and adjusts approach as needed
-
-    **When to Use:**
-    - Mathematical calculations requiring step-by-step computation
-    - Data analysis and statistical processing
-    - Algorithm implementation, optimization and execution
-    - Numerical simulations and modeling
-    - Text processing and pattern analysis
-    - Complex logical operations requiring code verification
-    
-    **Unique Advantage**: Unlike simple calculation tools, this agent can autonomously write, execute, debug, and refine code until achieving the correct solution, making it ideal for complex computational tasks that require adaptive problem-solving.
-    
-    **Input Format**: Describe the computational task clearly, including any data, constraints, or specific requirements."""
-)
 
 class EnhancedGAIAAgent:
     def __init__(self):
