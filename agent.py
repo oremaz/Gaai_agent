@@ -48,7 +48,7 @@ from llama_index.core.tools import QueryEngineTool
 from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.query_engine import RetrieverQueryEngine
-
+from llama_index.core.query_pipeline import QueryPipeline
 
 
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
@@ -264,6 +264,30 @@ extract_url_tool = FunctionTool.from_defaults(
     description=(
         "Use this tool ONLY when you need to find a relevant URL to answer a question but no when a specific file or document has been provided. It takes a search query as input and returns a single, relevant URL."
     )
+)
+
+# Créer un pipeline forcé read_and_parse → create_rag
+def create_forced_rag_pipeline():
+    pipeline = QueryPipeline(verbose=True)
+    
+    # Ajouter les modules
+    pipeline.add_modules({
+        "read_and_parse": read_and_parse_tool,
+        "create_rag": create_rag_tool,
+    })
+    
+    # Forcer la liaison : read_and_parse → create_rag
+    pipeline.add_link("read_and_parse", "create_rag")
+    
+    return pipeline
+
+forced_rag_pipeline = create_forced_rag_pipeline()
+
+# Remplacer les tools individuels par le pipeline
+process_docs_urls_tool = FunctionTool.from_defaults(
+    fn=lambda input_path: forced_rag_pipeline.run(input_path),
+    name="process_docs_urls_tool",
+    description="AUTOMATICALLY processes documents or URLs with read_and_parse for content extraction and parsing then creates RAG query engine on it"
 )
 
 safe_globals = {
@@ -541,11 +565,10 @@ class EnhancedGAIAAgent:
         
         # Initialize only the tools that are actually defined in the file
         self.available_tools = [
-            read_and_parse_tool,
             extract_url_tool, 
             code_execution_tool,
             generate_code_tool,
-            create_rag_tool
+            process_docs_urls_tool
         ]
                 
         # Create main coordinator using only defined tools
@@ -555,11 +578,10 @@ class EnhancedGAIAAgent:
 You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
 
 Available tools:
-1. **read_and_parse_tool** - Read and parse files/URLs (PDF, DOCX, CSV, images, web pages, YouTube, audio files)
+1. **process_docs_urls_tool** - Read and parse files/URLs (PDF, DOCX, CSV, images, web pages, YouTube, audio files) and create a query engine.
 2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
 3. **generate_code_tool** - Generate Python code for complex computations
 4. **code_execution_tool** - Execute Python code safely
-MANDATORY : IF you use read_and_parse_tool, use :  5. **create_rag_tool** - Create RAG tool from parsed files to improve the information retrieval. 
 """,
             llm=proj_llm,
             tools=self.available_tools,
