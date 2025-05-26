@@ -392,6 +392,9 @@ safe_globals = {
     
     # Scientific Computing
     "sympy": __import__("sympy"),
+
+    # llama-index
+    "llama-index" : __import__("llama_index")
 }
 
 def execute_python_code(code: str) -> str:
