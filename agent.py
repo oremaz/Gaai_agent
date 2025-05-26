@@ -561,15 +561,19 @@ Available tools:
 4. **code_execution_tool** - Execute Python code safely
 5. **create_rag_tool** - Create RAG tool from parsed files to improve the information retrieval.
 
-WORKFLOW for questions that needs external knowledge :
-a. Use extract_url_tool to extract a relevant URL from the query.
-b. Use read_and_parse_tool to read and parse the content of the extracted URL.
-c. Use create_rag_tool to create a query engine based on the parsed document.
-d. Use the created query engine to retrieve the answer to the question.
-WORKFLOW for questions where File available  :
-a. Use read_and_parse_tool to read and parse the content of the file.
-b. Use create_rag_tool to create a query engine based on the parsed file.
-c. Use the created query engine to retrieve the answer to the question.
+
+CRITICAL RAG WORKFLOW ENFORCEMENT:
+When documents are available, or when you need external knwoledge, you MUST use create_rag_tool to build a proper RAG engine.
+DO NOT attempt to process documents with Python code generation.
+
+FIRST MANDATORY STEPS for document-based questions or questions that need external knwoledge:
+0. (If external knowledge needed) : Use extract_url_tool to extract a relevant URL from the query.
+1. Use read_and_parse_tool to load documents/read content from the URL
+2. ALWAYS use create_rag_tool to create a query engine 
+3. Use the RAG query engine to answer questions
+
+IMPORTANT: Python code generation should ONLY be used for mathematical computations, 
+NOT for document processing or information extraction.
 """,
             llm=proj_llm,
             tools=self.available_tools,
