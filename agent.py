@@ -26,7 +26,7 @@ from llama_index.core.workflow import Context
 from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
-from llama_index.readers.audiotranscribe.openai import OpenAIAudioTranscriptReader
+from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
 from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader, PandasExcelReader
 from llama_index.readers.json import JSONReader
 from llama_index.readers.web import TrafilaturaWebReader
@@ -110,7 +110,7 @@ def read_and_parse_content(input_path: str) -> List[Document]:
         '.jpg': ImageReader(),
         '.jpeg': ImageReader(),
         '.png': ImageReader(),
-        '.mp3': OpenAIAudioTranscriptReader(),
+        '.mp3': AssemblyAIAudioTranscriptReader(),
     }
 
     # --- URL Handling ---
