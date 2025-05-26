@@ -64,7 +64,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
 logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
-model_id = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+model_id = "Qwen/Qwen2.5-7B-Instruct"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
@@ -399,7 +399,14 @@ from llama_index.llms.huggingface import HuggingFaceLLM
 # --- 1. Initialize a dedicated LLM for Code Generation ---
 # It's good practice to use a model specifically fine-tuned for coding.
 # This model is loaded only once for efficiency.
-code_llm = proj_llm
+code_llm = HuggingFaceLLM(
+    model_name="Qwen/Qwen2.5-Coder-3B",
+    tokenizer_name="Qwen/Qwen2.5-Coder-3B",
+    device_map="auto",
+    model_kwargs={"torch_dtype": "auto"},
+    # Set generation parameters for precise, non-creative code output
+    generate_kwargs={"temperature": 0.0, "do_sample": False}
+)
 
 def generate_python_code(query: str) -> str:
     """
