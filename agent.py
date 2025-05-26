@@ -559,21 +559,7 @@ Available tools:
 2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
 3. **generate_code_tool** - Generate Python code for complex computations
 4. **code_execution_tool** - Execute Python code safely
-5. **create_rag_tool** - Create RAG tool from parsed files to improve the information retrieval.
-
-
-CRITICAL RAG WORKFLOW ENFORCEMENT:
-When documents are available, or when you need external knwoledge, you MUST use create_rag_tool to build a proper RAG engine.
-DO NOT attempt to process documents with Python code generation.
-
-FIRST MANDATORY STEPS for document-based questions or questions that need external knwoledge:
-0. (If external knowledge needed) : Use extract_url_tool to extract a relevant URL from the query.
-1. Use read_and_parse_tool to load documents/read content from the URL
-2. ALWAYS use create_rag_tool to create a query engine 
-3. Use the RAG query engine to answer questions
-
-IMPORTANT: Python code generation should ONLY be used for mathematical computations, 
-NOT for document processing or information extraction.
+MANDATORY : IF you use read_and_parse_tool, use :  5. **create_rag_tool** - Create RAG tool from parsed files to improve the information retrieval. 
 """,
             llm=proj_llm,
             tools=self.available_tools,
@@ -619,10 +605,6 @@ NOT for document processing or information extraction.
 GAIA Task ID: {task_id}
 Question: {question}
 {f'File available: {file_path}' if file_path else 'No additional files'}
-
-Instructions:
-1. Process any files using read_and_parse_tool if needed
-2. Use appropriate tools for research/computation
 """
         
         try:
