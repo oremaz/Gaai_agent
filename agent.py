@@ -298,7 +298,13 @@ forced_rag_pipeline = create_forced_rag_pipeline()
 process_docs_urls_tool = FunctionTool.from_defaults(
     fn=lambda input_path: forced_rag_pipeline.run(input_path),
     name="process_docs_urls_tool",
-    description="AUTOMATICALLY processes documents or URLs with read_and_parse for content extraction and parsing then creates RAG query engine on it"
+    description=(
+        "This is the PRIMARY and BEST tool to extract required information from URLs or documents. "
+        "It AUTOMATICALLY processes documents or URLs with read_and_parse for complete content extraction and parsing, "
+        "then creates a RAG query engine optimized for information retrieval. This tool is specifically designed to "
+        "handle web pages, PDFs, documents and extract specific information efficiently. "
+        "DO NOT try to access pages manually - use this tool instead for superior information extraction and querying capabilities."
+    )
 )
 
 safe_globals = {
