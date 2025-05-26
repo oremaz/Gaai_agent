@@ -239,16 +239,17 @@ def create_rag_tool_fn(documents: List[Document], query: str = None) -> Union[Qu
     
     return rag_engine_tool
 
-create_rag_tool = FunctionTool.from_defaults(
+information_retrieval_tool = FunctionTool.from_defaults(
     fn=create_rag_tool_fn,
-    name="create_rag_tool",
+    name="information_retrieval_tool",
     description=(
+        "This is the BEST and OPTIMAL tool to query information from documents parsed from URLs or files. "
         "Use this tool to build a Retrieval Augmented Generation (RAG) engine from documents AND optionally query it immediately. "
-        "Input: documents (list of documents or paths) and optional query parameter. "
+        "Input: documents (list of documents) and optional query parameter. "
         "If no query is provided: creates and returns a RAG query engine tool for later use. "
         "If query is provided: creates the RAG engine AND immediately returns the answer to your question. "
-        "This dual-mode tool enables both RAG engine creation and direct question-answering in one step. "
-        "Use with query parameter when you want immediate answers from documents, or without query to create a reusable engine."
+        "ALWAYS use this tool when you need to retrieve specific information from documents obtained via URLs or file. "
+        "This dual-mode tool enables both RAG engine creation and direct question-answering in one step, making it the most efficient approach for document-based information retrieval."
     )
 )
 # 1. Create the base DuckDuckGo search tool from the official spec.
@@ -285,51 +286,6 @@ extract_url_tool = FunctionTool.from_defaults(
     name="extract_url_tool",
     description=(
         "Use this tool when you need to find a relevant URL to answer a question. It takes a search query as input and returns a single, relevant URL."
-    )
-)
-
-from llama_index.core.query_pipeline import QueryPipeline, FnComponent
-
-# Convertir vos fonctions en composants de pipeline
-def read_and_parse_fn(input_path: str):
-    """Function compatible avec QueryPipeline"""
-    return read_and_parse_content(input_path)
-
-def create_rag_fn(documents, query = None):
-    """Function compatible avec QueryPipeline"""
-    return create_rag_tool(documents, query)
-
-# Créer le pipeline avec FnComponent
-def create_forced_rag_pipeline():
-    pipeline = QueryPipeline(verbose=True)
-    
-    # Utiliser FnComponent au lieu de FunctionTool
-    pipeline.add_modules({
-        "read_and_parse": FnComponent(fn=read_and_parse_fn),
-        "create_rag": FnComponent(fn=create_rag_fn),
-    })
-    
-    # Forcer la liaison
-    pipeline.add_link("read_and_parse", "create_rag")
-    
-    return pipeline
-
-forced_rag_pipeline = create_forced_rag_pipeline()
-
-def forced_rag_pipeline_fn(input_path, query) : 
-    return forced_rag_pipeline.run(input_path,query)
-# Remplacer les tools individuels par le pipeline
-information_retrieval_tool = FunctionTool.from_defaults(
-    fn=forced_rag_pipeline_fn,
-    name="information_retrieval_tool",
-    description=(
-        "This tool is the PRIMARY and MOST EFFECTIVE method for answering user queries by extracting and retrieving information from URLs or documents. "
-        "When given a document or URL, it AUTOMATICALLY processes the content and DIRECTLY ANSWERS your specific question or information need. "
-        "The tool first uses read_and_parse to fully extract and parse content from web pages, PDFs, or document files. "
-        "Then, it creates a powerful Retrieval Augmented Generation (RAG) query engine optimized for semantic search and precise information retrieval. "
-        "Most importantly, it IMMEDIATELY applies this RAG engine to provide direct, accurate answers to your query, eliminating the need for manual searching. "
-        "This tool is specifically designed to transform user questions into precise answers by leveraging advanced document understanding and query processing capabilities. "
-        "Instead of manual page access or ad-hoc parsing, use this tool to get immediate, reliable answers to your information retrieval needs."
     )
 )
 
@@ -600,6 +556,7 @@ class EnhancedGAIAAgent:
         # Initialize only the tools that are actually defined in the file
         self.available_tools = [
             extract_url_tool,
+            read_and_parse_tool,
             information_retrieval_tool,
             code_execution_tool,
             generate_code_tool,
