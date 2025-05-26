@@ -295,9 +295,9 @@ def read_and_parse_fn(input_path: str):
     """Function compatible avec QueryPipeline"""
     return read_and_parse_content(input_path)
 
-def create_rag_fn(documents):
+def create_rag_fn(documents, query = None):
     """Function compatible avec QueryPipeline"""
-    return create_rag_tool(documents)
+    return create_rag_tool(documents, query)
 
 # Créer le pipeline avec FnComponent
 def create_forced_rag_pipeline():
