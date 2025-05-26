@@ -42,7 +42,7 @@ from llama_index.readers.file import (
     PandasExcelReader,
     ImageReader,
 )
-from typing import List
+from typing import List, Union
 from llama_index.core import VectorStoreIndex, Document, Settings
 from llama_index.core.tools import QueryEngineTool
 from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
