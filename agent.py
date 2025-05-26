@@ -252,9 +252,7 @@ extract_url_tool = FunctionTool.from_defaults(
     fn=search_and_extract_top_url,
     name="extract_url_tool",
     description=(
-        "Use this tool ONLY when you need to find a relevant URL to answer a question but no "
-        "specific file, document, or URL has been provided. It takes a search query as input "
-        "and returns a single, relevant URL."
+        "Use this tool ONLY when you need to find a relevant URL to answer a question but no when a specific file or document has been provided. It takes a search query as input and returns a single, relevant URL."
     )
 )
 
