@@ -115,7 +115,7 @@ def read_and_parse_content(input_path: str) -> List[Document]:
 
     # --- URL Handling ---
     if input_path.startswith("http"):
-        if "https://www.youtube.com/watch?v=2N-rwsa5lEw2" in urlparse(input_path).netloc or "https://www.youtube.com/watch?v=2N-rwsa5lEw3" in urlparse(input_path).netloc:
+        if "youtube" in urlparse(input_path):
             loader = YoutubeTranscriptReader()
             documents = loader.load_data(youtubelinks=[input_path])
         else:
