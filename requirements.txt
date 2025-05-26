@@ -2,25 +2,45 @@
 gradio
 requests
 
-# LlamaIndex
-llama-index
-llama-index-core
-llama-index-llms-huggingface
-llama-index-embeddings-huggingface
-llama-index-readers-file
-llama-index-tools-arxiv
-llama-index-tools-duckduckgo
-llama-index-postprocessor-sbert-rerank
-llama-index-readers-web
-llama-index-callbacks-wandb
+# Core ML and NLP
+torch>=2.0.0
+transformers>=4.30.0
+sentence-transformers>=2.2.0
+huggingface-hub>=0.15.0
 
-# ML Stack (ESSENTIELS)
-transformers
-torch
-sentence-transformers
+# LlamaIndex ecosystem
+llama-index>=0.10.0
+llama-index-core>=0.10.0
+llama-index-llms-huggingface>=0.2.0
+llama-index-embeddings-huggingface>=0.2.0
+llama-index-callbacks-wandb>=0.1.0
+llama-index-tools-arxiv>=0.1.0
+llama-index-tools-duckduckgo>=0.1.0
+llama-index-readers-file>=0.1.0
+llama-index-readers-web>=0.1.0
+llama-index-readers-youtube-transcript>=0.1.0
+llama-index-readers-json>=0.1.0
+
+# Document processing
+pypdf>=3.0.0
+python-docx>=0.8.11
+openpyxl>=3.1.0
+pandas>=2.0.0
+Pillow>=9.0.0
+
+# Web scraping and APIs
+requests>=2.28.0
+trafilatura>=1.6.0
+duckduckgo-search>=3.0.0
+arxiv>=1.4.0
+
+# Audio processing (for OpenAI audio transcribe)
+openai>=1.0.0
+
+# Monitoring and logging
+wandb>=0.15.0
 
 # Utilities
-Pillow
-python-dotenv
-wandb
+scipy>=1.10.0
+tqdm>=4.65.0
 numpy == 1.26.4
