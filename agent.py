@@ -64,7 +64,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
 logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
-model_id = "Qwen/Qwen2.5-7B-Instruct" 
+model_id = "mistralai/Mistral-7B-Instruct-v0.3" 
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
@@ -110,7 +110,7 @@ def read_and_parse_content(input_path: str) -> List[Document]:
         '.jpg': ImageReader(),
         '.jpeg': ImageReader(),
         '.png': ImageReader(),
-        '.mp3': AssemblyAIAudioTranscriptReader(),
+        '.mp3': AssemblyAIAudioTranscriptReader(input_path),
     }
 
     # --- URL Handling ---
@@ -159,8 +159,7 @@ read_and_parse_tool = FunctionTool.from_defaults(
     )
 )
 
-
-def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
+def create_rag_tool_fn(documents: List[Document]) -> QueryEngineTool:
     """
     Creates a RAG query engine tool from a list of documents using advanced components.
     Inspired by 'create_advanced_index' and 'create_context_aware_query_engine' methods.
@@ -218,6 +217,17 @@ def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
     )
     
     return rag_engine_tool
+
+create_rag_tool = FunctionTool.from_defaults(
+    fn=create_rag_tool_fn,
+    name="create_rag_tool",
+    description=(
+        "Use this tool to create a Retrieval Augmented Generation (RAG) engine from a set of documents. "
+        "Input should be a list of documents or document paths. The tool processes these documents to build a vector index "
+        "and a query engine that enables natural language querying over the document content. "
+        "This tool is essential for enabling efficient and context-aware information retrieval in complex document collections."
+    )
+)
 
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
@@ -535,11 +545,9 @@ class EnhancedGAIAAgent:
             extract_url_tool, 
             code_execution_tool,
             generate_code_tool,
+            create_rag_tool
         ]
-        
-        # RAG tool will be created dynamically when documents are loaded
-        self.current_rag_tool = None
-        
+                
         # Create main coordinator using only defined tools
         self.coordinator = ReActAgent(
             name="GAIACoordinator",
@@ -551,7 +559,17 @@ Available tools:
 2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
 3. **generate_code_tool** - Generate Python code for complex computations
 4. **code_execution_tool** - Execute Python code safely
-5. **create_dynamic_rag_tool** - Create RAG tool from parsed files to improve the information retrieval.
+5. **create_rag_tool** - Create RAG tool from parsed files to improve the information retrieval.
+
+WORKFLOW for questions that needs external knowledge :
+a. Use extract_url_tool to extract a relevant URL from the query.
+b. Use read_and_parse_tool to read and parse the content of the extracted URL.
+c. Use create_rag_tool to create a query engine based on the parsed document.
+d. Use the created query engine to retrieve the answer to the question.
+WORKFLOW for questions where File available  :
+a. Use read_and_parse_tool to read and parse the content of the file.
+b. Use create_rag_tool to create a query engine based on the parsed file.
+c. Use the created query engine to retrieve the answer to the question.
 """,
             llm=proj_llm,
             tools=self.available_tools,
@@ -560,16 +578,6 @@ Available tools:
             callback_manager=callback_manager,
         )
     
-    def create_dynamic_rag_tool(self, documents: List) -> None:
-        """Create RAG tool from loaded documents and add to coordinator"""
-        if documents:
-            rag_tool = create_rag_tool(documents)
-            if rag_tool:
-                self.current_rag_tool = rag_tool
-                # Update coordinator tools
-                updated_tools = self.available_tools + [rag_tool]
-                self.coordinator.tools = updated_tools
-                print("RAG tool created and added to coordinator")
     
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
@@ -598,9 +606,7 @@ Available tools:
             try:
                 file_path = self.download_gaia_file(task_id)
                 if file_path:
-                    # Load documents and create RAG tool
                     documents = read_and_parse_content(file_path)
-                    self.create_dynamic_rag_tool(documents)
             except Exception as e:
                 print(f"Failed to download/process file for task {task_id}: {e}")
         
