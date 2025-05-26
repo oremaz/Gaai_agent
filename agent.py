@@ -159,17 +159,34 @@ read_and_parse_tool = FunctionTool.from_defaults(
     )
 )
 
-def create_rag_tool_fn(documents: List[Document]) -> QueryEngineTool:
+def create_rag_tool_fn(documents: List[Document], query: str = None) -> Union[QueryEngineTool, str]:
     """
-    Creates a RAG query engine tool from a list of documents using advanced components.
-    Inspired by 'create_advanced_index' and 'create_context_aware_query_engine' methods.
-
+    Creates a RAG query engine tool from documents with advanced indexing and querying capabilities.
+    
+    This function implements a sophisticated RAG pipeline using hierarchical or sentence-window parsing
+    depending on document count, vector indexing, and reranking for optimal information retrieval.
+    
     Args:
-        documents: A list of LlamaIndex Document objects from the read_and_parse_tool.
-
+        documents (List[Document]): A list of LlamaIndex Document objects from read_and_parse_tool.
+                                   Must not be empty to create a valid RAG engine.
+        query (str, optional): If provided, immediately queries the created RAG engine and returns
+                              the answer as a string. If None, returns the QueryEngineTool for later use.
+                              Defaults to None.
+    
     Returns:
-        A QueryEngineTool configured for the agent to use in the current task.
-    """
+        Union[QueryEngineTool, str]: 
+            - QueryEngineTool: When query=None, returns a tool configured for agent use with
+                              advanced reranking and similarity search capabilities.
+            - str: When query is provided, returns the direct answer from the RAG engine.
+            - None: When documents list is empty.
+    
+    Examples:
+        Create a RAG tool for later use:
+        >>> rag_tool = create_rag_tool_fn(documents)
+        
+        Get immediate answer from documents:
+        >>> answer = create_rag_tool_fn(documents, query="What is the main topic?")
+        """
     if not documents:
         return None
 
@@ -215,6 +232,10 @@ def create_rag_tool_fn(documents: List[Document]) -> QueryEngineTool:
             "The input is a natural language question about the documents' content."
         )
     )
+
+    if query : 
+        result = rag_engine_tool.query_engine.query(query)
+        return str(result)
     
     return rag_engine_tool
 
@@ -222,13 +243,14 @@ create_rag_tool = FunctionTool.from_defaults(
     fn=create_rag_tool_fn,
     name="create_rag_tool",
     description=(
-        "Use this tool to create a Retrieval Augmented Generation (RAG) engine from a set of documents. "
-        "Input should be a list of documents or document paths. The tool processes these documents to build a vector index "
-        "and a query engine that enables natural language querying over the document content. "
-        "This tool is essential for enabling efficient and context-aware information retrieval in complex document collections."
+        "Use this tool to build a Retrieval Augmented Generation (RAG) engine from documents AND optionally query it immediately. "
+        "Input: documents (list of documents or paths) and optional query parameter. "
+        "If no query is provided: creates and returns a RAG query engine tool for later use. "
+        "If query is provided: creates the RAG engine AND immediately returns the answer to your question. "
+        "This dual-mode tool enables both RAG engine creation and direct question-answering in one step. "
+        "Use with query parameter when you want immediate answers from documents, or without query to create a reusable engine."
     )
 )
-
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
 base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
@@ -295,15 +317,16 @@ def create_forced_rag_pipeline():
 forced_rag_pipeline = create_forced_rag_pipeline()
 
 # Remplacer les tools individuels par le pipeline
-process_docs_urls_tool = FunctionTool.from_defaults(
+information_retrieval_tool = FunctionTool.from_defaults(
     fn=lambda input_path: forced_rag_pipeline.run(input_path),
     name="process_docs_urls_tool",
     description=(
-        "This is the PRIMARY and BEST tool to extract required information from URLs or documents. "
-        "It AUTOMATICALLY processes documents or URLs with read_and_parse for complete content extraction and parsing, "
-        "then creates a RAG query engine optimized for information retrieval. This tool is specifically designed to "
-        "handle web pages, PDFs, documents and extract specific information efficiently. "
-        "DO NOT try to access pages manually - use this tool instead for superior information extraction and querying capabilities."
+        "This tool is the PRIMARY and MOST EFFECTIVE method for extracting and retrieving information from URLs or documents. "
+        "It AUTOMATICALLY processes any given web pages, PDFs, or document files by first using read_and_parse to fully extract and parse content. "
+        "Then, it creates a powerful Retrieval Augmented Generation (RAG) query engine optimized for semantic search and precise information retrieval. "
+        "Finally, it applies the RAG engine to answer queries directly, providing efficient and accurate results. "
+        "This tool is specifically designed to handle diverse document types and web content, ensuring superior extraction and querying capabilities. "
+        "Avoid manual page access or ad-hoc parsing; always use this tool for best performance and reliability in information extraction and question answering."
     )
 )
 
