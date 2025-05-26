@@ -42,3 +42,20 @@ wandb>=0.15.0
 scipy>=1.10.0
 tqdm>=4.65.0
 numpy == 1.26.4
+pandas
+scipy
+matplotlib
+seaborn
+plotly
+scikit-learn
+xgboost
+lightgbm
+statsmodels
+opencv-python
+scikit-image
+requests
+nltk
+spacy
+pytz
+tqdm
+sympy
