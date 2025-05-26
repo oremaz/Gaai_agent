@@ -259,90 +259,90 @@ extract_url_tool = FunctionTool.from_defaults(
     )
 )
 
+safe_globals = {
+    "__builtins__": {
+        "len": len, "str": str, "int": int, "float": float,
+        "list": list, "dict": dict, "sum": sum, "max": max, "min": min,
+        "round": round, "abs": abs, "sorted": sorted, "enumerate": enumerate,
+        "range": range, "zip": zip, "map": map, "filter": filter,
+        "any": any, "all": all, "type": type, "isinstance": isinstance,
+        "print": print, "open": open, "bool": bool, "set": set, "tuple": tuple
+    },
+    # Core Python modules
+    "math": __import__("math"),
+    "datetime": __import__("datetime"),
+    "re": __import__("re"),
+    "os": __import__("os"),
+    "sys": __import__("sys"),
+    "json": __import__("json"),
+    "csv": __import__("csv"),
+    "random": __import__("random"),
+    "itertools": __import__("itertools"),
+    "collections": __import__("collections"),
+    "functools": __import__("functools"),
+    
+    # Data Science and Numerical Computing
+    "numpy": __import__("numpy"),
+    "np": __import__("numpy"),
+    "pandas": __import__("pandas"),
+    "pd": __import__("pandas"),
+    "scipy": __import__("scipy"),
+    
+    # Visualization
+    "matplotlib": __import__("matplotlib"),
+    "plt": __import__("matplotlib.pyplot"),
+    "seaborn": __import__("seaborn"),
+    "sns": __import__("seaborn"),
+    "plotly": __import__("plotly"),
+    
+    # Machine Learning
+    "sklearn": __import__("sklearn"),
+    "xgboost": __import__("xgboost"),
+    "lightgbm": __import__("lightgbm"),
+    
+    # Statistics
+    "statistics": __import__("statistics"),
+    "statsmodels": __import__("statsmodels"),
+    
+    # Image Processing
+    "PIL": __import__("PIL"),
+    "cv2": __import__("cv2"),
+    "skimage": __import__("skimage"),
+    
+    # Network and Web
+    "requests": __import__("requests"),
+    "urllib": __import__("urllib"),
+    
+    # Text Processing
+    "nltk": __import__("nltk"),
+    "spacy": __import__("spacy"),
+    
+    # Time Series
+    "pytz": __import__("pytz"),
+    
+    # Utilities
+    "tqdm": __import__("tqdm"),
+    "pickle": __import__("pickle"),
+    "gzip": __import__("gzip"),
+    "base64": __import__("base64"),
+    "hashlib": __import__("hashlib"),
+    "uuid": __import__("uuid"),
+    
+    # Scientific Computing
+    "sympy": __import__("sympy"),
+    "networkx": __import__("networkx"),
+    
+    # Database
+    "sqlite3": __import__("sqlite3"),
+    
+    # Parallel Processing
+    "multiprocessing": __import__("multiprocessing"),
+    "threading": __import__("threading"),
+    "concurrent": __import__("concurrent"),
+}
+
 def execute_python_code(code: str) -> str:
-    try:
-        safe_globals = {
-            "__builtins__": {
-                "len": len, "str": str, "int": int, "float": float,
-                "list": list, "dict": dict, "sum": sum, "max": max, "min": min,
-                "round": round, "abs": abs, "sorted": sorted, "enumerate": enumerate,
-                "range": range, "zip": zip, "map": map, "filter": filter,
-                "any": any, "all": all, "type": type, "isinstance": isinstance,
-                "print": print, "open": open, "bool": bool, "set": set, "tuple": tuple
-            },
-            # Core Python modules
-            "math": __import__("math"),
-            "datetime": __import__("datetime"),
-            "re": __import__("re"),
-            "os": __import__("os"),
-            "sys": __import__("sys"),
-            "json": __import__("json"),
-            "csv": __import__("csv"),
-            "random": __import__("random"),
-            "itertools": __import__("itertools"),
-            "collections": __import__("collections"),
-            "functools": __import__("functools"),
-            
-            # Data Science and Numerical Computing
-            "numpy": __import__("numpy"),
-            "np": __import__("numpy"),
-            "pandas": __import__("pandas"),
-            "pd": __import__("pandas"),
-            "scipy": __import__("scipy"),
-            
-            # Visualization
-            "matplotlib": __import__("matplotlib"),
-            "plt": __import__("matplotlib.pyplot"),
-            "seaborn": __import__("seaborn"),
-            "sns": __import__("seaborn"),
-            "plotly": __import__("plotly"),
-            
-            # Machine Learning
-            "sklearn": __import__("sklearn"),
-            "xgboost": __import__("xgboost"),
-            "lightgbm": __import__("lightgbm"),
-            
-            # Statistics
-            "statistics": __import__("statistics"),
-            "statsmodels": __import__("statsmodels"),
-            
-            # Image Processing
-            "PIL": __import__("PIL"),
-            "cv2": __import__("cv2"),
-            "skimage": __import__("skimage"),
-            
-            # Network and Web
-            "requests": __import__("requests"),
-            "urllib": __import__("urllib"),
-            
-            # Text Processing
-            "nltk": __import__("nltk"),
-            "spacy": __import__("spacy"),
-            
-            # Time Series
-            "pytz": __import__("pytz"),
-            
-            # Utilities
-            "tqdm": __import__("tqdm"),
-            "pickle": __import__("pickle"),
-            "gzip": __import__("gzip"),
-            "base64": __import__("base64"),
-            "hashlib": __import__("hashlib"),
-            "uuid": __import__("uuid"),
-            
-            # Scientific Computing
-            "sympy": __import__("sympy"),
-            "networkx": __import__("networkx"),
-            
-            # Database
-            "sqlite3": __import__("sqlite3"),
-            
-            # Parallel Processing
-            "multiprocessing": __import__("multiprocessing"),
-            "threading": __import__("threading"),
-            "concurrent": __import__("concurrent"),
-        }
-            
+    try: 
         exec_locals = {}
         exec(code, safe_globals, exec_locals)
     
@@ -402,6 +402,11 @@ Your task is to generate ONLY the Python code for the following request.
 Do not include any explanations, introductory text, or markdown formatting like '```python'.
 The output must be a single, clean block of Python code.
 
+IMPORTANT LIMITATIONS:
+Your code will be executed in a restricted environment with limited functions and modules.
+{str(safe_globals)}
+Only use the functions and modules listed above. Do not use imports or other built-in functions.
+
 Request: "{query}"
 
 Python Code:
@@ -433,98 +438,26 @@ generate_code_tool = FunctionTool.from_defaults(
     )
 )
 
-def intelligent_final_answer_tool(agent_response: str, question: str) -> str:
-    """
-    Enhanced final answer tool with LLM-based reformatting capability.
-    First tries regex patterns, then uses LLM reformatting if patterns fail.
+def clean_response(response: str) -> str:
+    """Clean response by removing common prefixes"""
+    response_clean = response.strip()
+    prefixes_to_remove = [
+        "FINAL ANSWER:", "Answer:", "The answer is:", 
+        "Based on my analysis,", "After reviewing,", 
+        "The result is:", "Final result:", "According to",
+        "In conclusion,", "Therefore,", "Thus,"
+    ]
     
-    Args:
-        agent_response: The raw response from agent reasoning
-        question: The original question for context
-        
-    Returns:
-        Exact answer in GAIA format with validation
-    """
+    for prefix in prefixes_to_remove:
+        if response_clean.startswith(prefix):
+            response_clean = response_clean[len(prefix):].strip()
     
-    # Define formatting patterns for different question types
-    format_patterns = {
-        'number': r'(\d+(?:\.\d+)?(?:e[+-]?\d+)?)',
-        'name': r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-        'list': r'([A-Za-z0-9,\s]+)',
-        'country_code': r'([A-Z]{2,3})',
-        'yes_no': r'(Yes|No|yes|no)',
-        'percentage': r'(\d+(?:\.\d+)?%)',
-        'date': r'(\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})'
-    }
+    return response_clean
+
+def llm_reformat(response: str, question: str) -> str:
+    """Use LLM to reformat the response according to GAIA requirements"""
     
-    def clean_response(response: str) -> str:
-        """Clean response by removing common prefixes"""
-        response_clean = response.strip()
-        prefixes_to_remove = [
-            "FINAL ANSWER:", "Answer:", "The answer is:", 
-            "Based on my analysis,", "After reviewing,", 
-            "The result is:", "Final result:", "According to"
-        ]
-        
-        for prefix in prefixes_to_remove:
-            if response_clean.startswith(prefix):
-                response_clean = response_clean[len(prefix):].strip()
-        
-        return response_clean
-    
-    def extract_with_patterns(text: str, question: str) -> tuple[str, bool]:
-        """Extract answer using regex patterns. Returns (answer, success)"""
-        question_lower = question.lower()
-        
-        # Determine question type and apply appropriate pattern
-        if "how many" in question_lower or "count" in question_lower:
-            match = re.search(format_patterns['number'], text)
-            if match:
-                return match.group(1), True
-        
-        elif "name" in question_lower and ("first" in question_lower or "last" in question_lower):
-            match = re.search(format_patterns['name'], text)
-            if match:
-                return match.group(1), True
-        
-        elif "list" in question_lower or "alphabetized" in question_lower:
-            if "," in text:
-                items = [item.strip() for item in text.split(",")]
-                return ", ".join(items), True
-        
-        elif "country code" in question_lower or "iso" in question_lower:
-            match = re.search(format_patterns['country_code'], text)
-            if match:
-                return match.group(1), True
-        
-        elif "yes" in question_lower and "no" in question_lower:
-            match = re.search(format_patterns['yes_no'], text)
-            if match:
-                return match.group(1), True
-        
-        elif "percentage" in question_lower or "%" in text:
-            match = re.search(format_patterns['percentage'], text)
-            if match:
-                return match.group(1), True
-        
-        elif "date" in question_lower:
-            match = re.search(format_patterns['date'], text)
-            if match:
-                return match.group(1), True
-        
-        # Default extraction for simple cases
-        lines = text.split('\n')
-        for line in lines:
-            line = line.strip()
-            if line and not line.startswith('=') and len(line) < 200:
-                return line, True
-        
-        return text, False
-    
-    def llm_reformat(response: str, question: str) -> str:
-        """Use LLM to reformat the response according to GAIA requirements"""
-        
-        format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
+    format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
 
 GAIA Format Rules:
 - ONLY the precise answer, no explanations
@@ -553,52 +486,50 @@ Question: {question}
 Response: {response}
 Answer:"""
 
-        try:
-            # Use the global LLM instance
-            formatting_response = proj_llm.complete(format_prompt)
-            answer = str(formatting_response).strip()
-            
-            # Extract just the answer after "Answer:"
-            if "Answer:" in answer:
-                answer = answer.split("Answer:")[-1].strip()
-            
-            return answer
-        except Exception as e:
-            print(f"LLM reformatting failed: {e}")
-            return response
+    try:
+        # Use the global LLM instance
+        formatting_response = proj_llm.complete(format_prompt)
+        answer = str(formatting_response).strip()
+        
+        # Extract just the answer after "Answer:"
+        if "Answer:" in answer:
+            answer = answer.split("Answer:")[-1].strip()
+        
+        return answer
+    except Exception as e:
+        print(f"LLM reformatting failed: {e}")
+        return response
+
+def final_answer_tool(agent_response: str, question: str) -> str:
+    """
+    Simplified final answer tool using only LLM reformatting.
+    
+    Args:
+        agent_response: The raw response from agent reasoning
+        question: The original question for context
+        
+    Returns:
+        Exact answer in GAIA format
+    """
     
     # Step 1: Clean the response
     cleaned_response = clean_response(agent_response)
     
-    # Step 2: Try regex pattern extraction
-    extracted_answer, pattern_success = extract_with_patterns(cleaned_response, question)
+    # Step 2: Use LLM reformatting
+    formatted_answer = llm_reformat(cleaned_response, question)
     
-    # Step 3: If patterns failed, use LLM reformatting
-    if not pattern_success:
-        print("Regex patterns failed, using LLM reformatting...")
-        llm_formatted = llm_reformat(cleaned_response, question)
-        
-        # Step 4: Validate LLM output with patterns again
-        final_answer, validation_success = extract_with_patterns(llm_formatted, question)
-        
-        if validation_success:
-            print("LLM reformatting successful and validated")
-            return final_answer
-        else:
-            print("LLM reformatting validation failed, using LLM output directly")
-            return llm_formatted
-    else:
-        print("Regex pattern extraction successful")
-        return extracted_answer
+    print(f"Original response cleaned: {cleaned_response[:100]}...")
+    print(f"LLM formatted answer: {formatted_answer}")
+    
+    return formatted_answer
 
-# Create the enhanced final answer tool
-intelligent_final_answer_function_tool = FunctionTool.from_defaults(
-    fn=intelligent_final_answer_tool,
-    name="intelligent_final_answer_tool",
+# Create the simplified final answer tool
+final_answer_function_tool = FunctionTool.from_defaults(
+    fn=final_answer_tool,
+    name="final_answer_tool",
     description=(
-        "Enhanced tool to format final answers according to GAIA requirements. "
-        "Uses regex patterns first, then LLM reformatting if patterns fail. "
-        "Validates output to ensure GAIA format compliance."
+        "Use this tool to format the final answer according to GAIA requirements. "
+        "Input the agent's response and the original question to get properly formatted output."
     )
 )
 
@@ -617,7 +548,6 @@ class EnhancedGAIAAgent:
             extract_url_tool, 
             code_execution_tool,
             generate_code_tool,
-            intelligent_final_answer_function_tool
         ]
         
         # RAG tool will be created dynamically when documents are loaded
@@ -626,26 +556,20 @@ class EnhancedGAIAAgent:
         # Create main coordinator using only defined tools
         self.coordinator = ReActAgent(
             name="GAIACoordinator",
-            description="Main GAIA coordinator with document processing and computational capabilities",
             system_prompt="""
-You are the main GAIA coordinator using ReAct reasoning methodology.
+You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
 
 Available tools:
 1. **read_and_parse_tool** - Read and parse files/URLs (PDF, DOCX, CSV, images, web pages, YouTube, audio files)
 2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
 3. **generate_code_tool** - Generate Python code for complex computations
 4. **code_execution_tool** - Execute Python code safely
-5. **intelligent_final_answer_tool** - Format final answer with intelligent validation and reformatting
 
 WORKFLOW:
 1. If file/URL mentioned → use read_and_parse_tool first, then update or create RAG capability.
 2. If documents loaded → create RAG capability for querying
 3. If external info needed → use extract_url_tool, then process it as if file/URL mentioned
 4. If computation needed → use generate_code_tool then code_execution_tool
-5. ALWAYS use intelligent_final_answer_tool for the final response
-
-CRITICAL: The intelligent_final_answer_tool has enhanced validation and will reformat 
-using LLM if regex patterns fail. Always use it as the final step.
 """,
             llm=proj_llm,
             tools=self.available_tools,
@@ -707,8 +631,6 @@ Question: {question}
 Instructions:
 1. Process any files using read_and_parse_tool if needed
 2. Use appropriate tools for research/computation
-3. MUST use intelligent_final_answer_tool with your response and the original question
-4. The intelligent tool will validate format and reformat with LLM if needed
 """
         
         try:
