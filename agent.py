@@ -369,12 +369,12 @@ from llama_index.llms.huggingface import HuggingFaceLLM
 # This model is loaded only once for efficiency.
 try:
     code_llm = HuggingFaceLLM(
-        model_name="Qwen/Qwen2.5-Coder-7B",
-        tokenizer_name="Qwen/Qwen2.5-Coder-7B",
+        model_name="Qwen/Qwen2.5-Coder-3B",
+        tokenizer_name="Qwen/Qwen2.5-Coder-3B",
         device_map="auto",
         model_kwargs={"torch_dtype": "auto"},
         # Set generation parameters for precise, non-creative code output
-        generate_kwargs={"temperature": 0.0, "do_sample": False}
+        generate_kwargs={"temperature": 0.1, "do_sample": False}
     )
 except Exception as e:
     print(f"Error initializing code generation model: {e}")
