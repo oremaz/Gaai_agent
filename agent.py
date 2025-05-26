@@ -350,15 +350,7 @@ safe_globals = {
     "PIL": __import__("PIL"),
     "cv2": __import__("cv2"),
     "skimage": __import__("skimage"),
-    
-    # Network and Web
-    "requests": __import__("requests"),
-    "urllib": __import__("urllib"),
-    
-    # Text Processing
-    "nltk": __import__("nltk"),
-    "spacy": __import__("spacy"),
-    
+        
     # Time Series
     "pytz": __import__("pytz"),
     
@@ -458,9 +450,11 @@ generate_code_tool = FunctionTool.from_defaults(
     fn=generate_python_code,
     name="generate_python_code_tool",
     description=(
-        "Use this tool to generate executable Python code based on a natural language description of a task. "
-        "The input should be a clear and specific request for what the code should do (e.g., 'a function to "
-        "calculate the nth Fibonacci number'). The tool returns a string containing only the Python code."
+        "Use this tool to generate executable Python code ONLY for mathematical calculations and problem solving. "
+        "This tool is specifically designed for numerical computations, statistical analysis, algebraic operations, "
+        "mathematical modeling, and scientific calculations."
+        "DO NOT use this tool for document processing, text manipulation, or data parsing - use appropriate specialized tools instead."
+        "The tool returns a string containing only the Python code for mathematical operations."
     )
 )
 
