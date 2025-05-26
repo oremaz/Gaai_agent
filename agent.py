@@ -262,7 +262,7 @@ extract_url_tool = FunctionTool.from_defaults(
     fn=search_and_extract_top_url,
     name="extract_url_tool",
     description=(
-        "Use this tool ONLY when you need to find a relevant URL to answer a question but no when a specific file or document has been provided. It takes a search query as input and returns a single, relevant URL."
+        "Use this tool when you need to find a relevant URL to answer a question. It takes a search query as input and returns a single, relevant URL."
     )
 )
 
@@ -581,12 +581,6 @@ class EnhancedGAIAAgent:
             name="GAIACoordinator",
             system_prompt="""
 You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
-
-Available tools:
-1. **process_docs_urls_tool** - Read and parse files/URLs (PDF, DOCX, CSV, images, web pages, YouTube, audio files) and create a query engine.
-2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
-3. **generate_code_tool** - Generate Python code for complex computations
-4. **code_execution_tool** - Execute Python code safely
 """,
             llm=proj_llm,
             tools=self.available_tools,
