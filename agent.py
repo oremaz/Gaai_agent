@@ -1,32 +1,53 @@
-from llama_index.core.agent.workflow import FunctionAgent
-from llama_index.core.tools import FunctionTool
-from llama_index.core import VectorStoreIndex, Document
-from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
-from llama_index.core.postprocessor import SentenceTransformerRerank
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core.retrievers import VectorIndexRetriever
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader
+# Standard library imports
+import logging
 import os
-from typing import List, Dict, Any
-from llama_index.tools.arxiv import ArxivToolSpec
-from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 import re
-from llama_index.core.agent.workflow import ReActAgent
+from typing import Dict, Any, List
+from urllib.parse import urlparse
+
+# Third-party imports
+import requests
 import wandb
-from llama_index.callbacks.wandb import WandbCallbackHandler
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# LlamaIndex core imports
+from llama_index.core import VectorStoreIndex, Document, Settings
+from llama_index.core.agent.workflow import FunctionAgent, ReActAgent, AgentStream
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
-from llama_index.core import Settings
-
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from llama_index.llms.huggingface import HuggingFaceLLM
-import requests
-import logging
+from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
+from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core.query_engine import RetrieverQueryEngine
+from llama_index.core.retrievers import VectorIndexRetriever
+from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
-from llama_index.core.agent.workflow import AgentStream
-from llama_index.readers_web import TrafilaturaWebReader
-from llama_index_readers_youtube_transcript import YoutubeTranscriptReader
+
+# LlamaIndex specialized imports
+from llama_index.callbacks.wandb import WandbCallbackHandler
+from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+from llama_index.llms.huggingface import HuggingFaceLLM
+from llama_index.readers.audiotranscribe.openai import OpenAIAudioTranscriptReader
+from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader, PandasExcelReader
+from llama_index.readers.json import JSONReader
+from llama_index.readers.web import TrafilaturaWebReader
+from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
+from llama_index.tools.arxiv import ArxivToolSpec
+from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
+
+# --- Import all required official LlamaIndex Readers ---
+from llama_index.readers.file import (
+    PDFReader,
+    DocxReader,
+    CSVReader,
+    PandasExcelReader,
+    ImageReader,
+)
+from typing import List
+from llama_index.core import VectorStoreIndex, Document, Settings
+from llama_index.core.tools import QueryEngineTool
+from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
+from llama_index.core.postprocessor import SentenceTransformerRerank
+from llama_index.core.query_engine import RetrieverQueryEngine
 
 
 
@@ -63,25 +84,6 @@ Settings.llm = proj_llm
 Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
 
-import os
-from typing import List
-from urllib.parse import urlparse
-
-from llama_index.core.tools import FunctionTool
-from llama_index.core import Document
-
-# --- Import all required official LlamaIndex Readers ---
-from llama_index.readers.file import (
-    PDFReader,
-    DocxReader,
-    CSVReader,
-    PandasExcelReader,
-    ImageReader,
-)
-from llama_index.readers.json import JSONReader
-from llama_index.readers.web import TrafilaturaWebReader
-from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
-from llama_index.readers.audiotranscribe.openai import OpenAIAudioTranscriptReader
 
 def read_and_parse_content(input_path: str) -> List[Document]:
     """
@@ -157,12 +159,6 @@ read_and_parse_tool = FunctionTool.from_defaults(
     )
 )
 
-from typing import List
-from llama_index.core import VectorStoreIndex, Document, Settings
-from llama_index.core.tools import QueryEngineTool
-from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
-from llama_index.core.postprocessor import SentenceTransformerRerank
-from llama_index.core.query_engine import RetrieverQueryEngine
 
 def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
     """
@@ -222,11 +218,6 @@ def create_rag_tool(documents: List[Document]) -> QueryEngineTool:
     )
     
     return rag_engine_tool
-
-
-import re
-from llama_index.core.tools import FunctionTool
-from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
@@ -442,89 +433,128 @@ generate_code_tool = FunctionTool.from_defaults(
     )
 )
 
-
-class EnhancedGAIAAgent:
-    def __init__(self):
-        print("Initializing Enhanced GAIA Agent...")
+def intelligent_final_answer_tool(agent_response: str, question: str) -> str:
+    """
+    Enhanced final answer tool with LLM-based reformatting capability.
+    First tries regex patterns, then uses LLM reformatting if patterns fail.
+    
+    Args:
+        agent_response: The raw response from agent reasoning
+        question: The original question for context
         
-        # Vérification du token HuggingFace
-        hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-        if not hf_token:
-            raise ValueError("HUGGINGFACEHUB_API_TOKEN environment variable is required")
-
-        # Agent coordinateur principal qui utilise les agents spécialisés comme tools
-        self.coordinator = ReActAgent(
-            name="GAIACoordinator",
-            description="Main GAIA coordinator that uses specialized capabilities as intelligent tools",
-            system_prompt="""
-            You are the main GAIA coordinator using ReAct reasoning methodology.
-                        
-            You have access to THREE specialist tools:
-            
-            **1. analysis_tool** - Advanced multimodal document analysis specialist
-            - Use for: PDF, Word, CSV, image file analysis
-            - When to use: Questions with file attachments, document analysis, data extraction
-            
-            **2. research_tool** - Intelligent research specialist with automatic routing
-            - Use for: External knowledge, current events, scientific papers
-            - When to use: Questions requiring external knowledge, factual verification, current information
-            
-            **3. code_tool** - Advanced computational specialist using ReAct reasoning
-            - Use for: Mathematical calculations, data processing, logical operations
-            - Capabilities: Generates and executes Python, handles complex computations, step-by-step problem solving
-            - When to use: Precise calculations, data manipulation, mathematical problem solving
-
-            **4. code_execution_tool** - Use only to execute .py file
-                       
-            CRITICAL: Your final answer must be EXACT and CONCISE as required by GAIA format : NO explanations, NO additional text, ONLY the precise answer
-            """,
-            llm=proj_llm,
-            tools=[analysis_tool, research_tool, code_tool, code_execution_tool], 
-            max_steps=10, 
-            verbose = True, 
-            callback_manager=callback_manager,
-
-        )
-
-    async def format_gaia_answer(self, raw_response: str, original_question: str) -> str:
-        """
-        Post-process the agent response to extract the exact GAIA format answer
-        """
+    Returns:
+        Exact answer in GAIA format with validation
+    """
+    
+    # Define formatting patterns for different question types
+    format_patterns = {
+        'number': r'(\d+(?:\.\d+)?(?:e[+-]?\d+)?)',
+        'name': r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        'list': r'([A-Za-z0-9,\s]+)',
+        'country_code': r'([A-Z]{2,3})',
+        'yes_no': r'(Yes|No|yes|no)',
+        'percentage': r'(\d+(?:\.\d+)?%)',
+        'date': r'(\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})'
+    }
+    
+    def clean_response(response: str) -> str:
+        """Clean response by removing common prefixes"""
+        response_clean = response.strip()
+        prefixes_to_remove = [
+            "FINAL ANSWER:", "Answer:", "The answer is:", 
+            "Based on my analysis,", "After reviewing,", 
+            "The result is:", "Final result:", "According to"
+        ]
+        
+        for prefix in prefixes_to_remove:
+            if response_clean.startswith(prefix):
+                response_clean = response_clean[len(prefix):].strip()
+        
+        return response_clean
+    
+    def extract_with_patterns(text: str, question: str) -> tuple[str, bool]:
+        """Extract answer using regex patterns. Returns (answer, success)"""
+        question_lower = question.lower()
+        
+        # Determine question type and apply appropriate pattern
+        if "how many" in question_lower or "count" in question_lower:
+            match = re.search(format_patterns['number'], text)
+            if match:
+                return match.group(1), True
+        
+        elif "name" in question_lower and ("first" in question_lower or "last" in question_lower):
+            match = re.search(format_patterns['name'], text)
+            if match:
+                return match.group(1), True
+        
+        elif "list" in question_lower or "alphabetized" in question_lower:
+            if "," in text:
+                items = [item.strip() for item in text.split(",")]
+                return ", ".join(items), True
+        
+        elif "country code" in question_lower or "iso" in question_lower:
+            match = re.search(format_patterns['country_code'], text)
+            if match:
+                return match.group(1), True
+        
+        elif "yes" in question_lower and "no" in question_lower:
+            match = re.search(format_patterns['yes_no'], text)
+            if match:
+                return match.group(1), True
+        
+        elif "percentage" in question_lower or "%" in text:
+            match = re.search(format_patterns['percentage'], text)
+            if match:
+                return match.group(1), True
+        
+        elif "date" in question_lower:
+            match = re.search(format_patterns['date'], text)
+            if match:
+                return match.group(1), True
+        
+        # Default extraction for simple cases
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('=') and len(line) < 200:
+                return line, True
+        
+        return text, False
+    
+    def llm_reformat(response: str, question: str) -> str:
+        """Use LLM to reformat the response according to GAIA requirements"""
+        
         format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
-    
-    Examples:
-    
-    Question: "How many research papers were published by the university between 2010 and 2020?"
-    Response: "Based on my analysis of the data, I found that the university published 156 research papers between 2010 and 2020."
-    Answer: 156
-    
-    Question: "What is the last name of the software engineer mentioned in the report?"
-    Response: "After reviewing the document, the software engineer mentioned is Dr. Martinez who developed the system."
-    Answer: Martinez
-    
-    Question: "List the programming languages from this job description, alphabetized:"
-    Response: "The job description mentions several programming languages including Python, Java, C++, and JavaScript. When alphabetized, these are: C++, Java, JavaScript, Python"
-    Answer: C++, Java, JavaScript, Python
-    
-    Question: "Give only the first name of the developer who created the framework."
-    Response: "The framework was created by Sarah Johnson, a senior developer at the company."
-    Answer: Sarah
-    
-    Question: "Give the ISO country code as your answer."
-    Response: "The country in question is France, which has the ISO code FRA."
-    Answer: FRA
-    
-    Question: "Provide your response in standard notation."
-    Response: "The calculated value is 314 million, which in standard notation is 3.14e+8"
-    Answer: 3.14e+8
-    
-    Now extract the exact answer:
-    
-    Question: {original_question}
-    Response: {raw_response}
-    Answer:"""
-    
+
+GAIA Format Rules:
+- ONLY the precise answer, no explanations
+- No prefixes like "Answer:", "The result is:", etc.
+- For numbers: just the number (e.g., "156", "3.14e+8")
+- For names: just the name (e.g., "Martinez", "Sarah")
+- For lists: comma-separated (e.g., "C++, Java, Python")
+- For country codes: just the code (e.g., "FRA", "US")
+- For yes/no: just "Yes" or "No"
+
+Examples:
+Question: "How many papers were published?"
+Response: "The analysis shows 156 papers were published in total."
+Answer: 156
+
+Question: "What is the last name of the developer?"
+Response: "The developer mentioned is Dr. Sarah Martinez from the AI team."
+Answer: Martinez
+
+Question: "List programming languages, alphabetized:"
+Response: "The languages mentioned are Python, Java, and C++. Alphabetized: C++, Java, Python"
+Answer: C++, Java, Python
+
+Now extract the exact answer:
+Question: {question}
+Response: {response}
+Answer:"""
+
         try:
+            # Use the global LLM instance
             formatting_response = proj_llm.complete(format_prompt)
             answer = str(formatting_response).strip()
             
@@ -533,10 +563,107 @@ class EnhancedGAIAAgent:
                 answer = answer.split("Answer:")[-1].strip()
             
             return answer
-            
         except Exception as e:
-            print(f"Error in formatting: {e}")
-            return self._extract_fallback_answer(raw_response)
+            print(f"LLM reformatting failed: {e}")
+            return response
+    
+    # Step 1: Clean the response
+    cleaned_response = clean_response(agent_response)
+    
+    # Step 2: Try regex pattern extraction
+    extracted_answer, pattern_success = extract_with_patterns(cleaned_response, question)
+    
+    # Step 3: If patterns failed, use LLM reformatting
+    if not pattern_success:
+        print("Regex patterns failed, using LLM reformatting...")
+        llm_formatted = llm_reformat(cleaned_response, question)
+        
+        # Step 4: Validate LLM output with patterns again
+        final_answer, validation_success = extract_with_patterns(llm_formatted, question)
+        
+        if validation_success:
+            print("LLM reformatting successful and validated")
+            return final_answer
+        else:
+            print("LLM reformatting validation failed, using LLM output directly")
+            return llm_formatted
+    else:
+        print("Regex pattern extraction successful")
+        return extracted_answer
+
+# Create the enhanced final answer tool
+intelligent_final_answer_function_tool = FunctionTool.from_defaults(
+    fn=intelligent_final_answer_tool,
+    name="intelligent_final_answer_tool",
+    description=(
+        "Enhanced tool to format final answers according to GAIA requirements. "
+        "Uses regex patterns first, then LLM reformatting if patterns fail. "
+        "Validates output to ensure GAIA format compliance."
+    )
+)
+
+class EnhancedGAIAAgent:
+    def __init__(self):
+        print("Initializing Enhanced GAIA Agent...")
+        
+        # Vérification du token HuggingFace
+        hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        if not hf_token:
+            print("Warning: HUGGINGFACEHUB_API_TOKEN not found, some features may not work")
+        
+        # Initialize only the tools that are actually defined in the file
+        self.available_tools = [
+            read_and_parse_tool,
+            extract_url_tool, 
+            code_execution_tool,
+            generate_code_tool,
+            intelligent_final_answer_function_tool
+        ]
+        
+        # RAG tool will be created dynamically when documents are loaded
+        self.current_rag_tool = None
+        
+        # Create main coordinator using only defined tools
+        self.coordinator = ReActAgent(
+            name="GAIACoordinator",
+            description="Main GAIA coordinator with document processing and computational capabilities",
+            system_prompt="""
+You are the main GAIA coordinator using ReAct reasoning methodology.
+
+Available tools:
+1. **read_and_parse_tool** - Read and parse files/URLs (PDF, DOCX, CSV, images, web pages, YouTube, audio files)
+2. **extract_url_tool** - Search and extract relevant URLs when no specific source is provided
+3. **generate_code_tool** - Generate Python code for complex computations
+4. **code_execution_tool** - Execute Python code safely
+5. **intelligent_final_answer_tool** - Format final answer with intelligent validation and reformatting
+
+WORKFLOW:
+1. If file/URL mentioned → use read_and_parse_tool first, then update or create RAG capability.
+2. If documents loaded → create RAG capability for querying
+3. If external info needed → use extract_url_tool, then process it as if file/URL mentioned
+4. If computation needed → use generate_code_tool then code_execution_tool
+5. ALWAYS use intelligent_final_answer_tool for the final response
+
+CRITICAL: The intelligent_final_answer_tool has enhanced validation and will reformat 
+using LLM if regex patterns fail. Always use it as the final step.
+""",
+            llm=proj_llm,
+            tools=self.available_tools,
+            max_steps=15,
+            verbose=True,
+            callback_manager=callback_manager,
+        )
+    
+    def create_dynamic_rag_tool(self, documents: List) -> None:
+        """Create RAG tool from loaded documents and add to coordinator"""
+        if documents:
+            rag_tool = create_rag_tool(documents)
+            if rag_tool:
+                self.current_rag_tool = rag_tool
+                # Update coordinator tools
+                updated_tools = self.available_tools + [rag_tool]
+                self.coordinator.tools = updated_tools
+                print("RAG tool created and added to coordinator")
     
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
@@ -544,7 +671,6 @@ class EnhancedGAIAAgent:
             response = requests.get(f"{api_url}/files/{task_id}", timeout=30)
             response.raise_for_status()
             
-            # Save file locally
             filename = f"task_{task_id}_file"
             with open(filename, 'wb') as f:
                 f.write(response.content)
@@ -552,53 +678,61 @@ class EnhancedGAIAAgent:
         except Exception as e:
             print(f"Failed to download file for task {task_id}: {e}")
             return None
-
-    async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
-            question = question_data.get("Question", "")
-            task_id = question_data.get("task_id", "")
     
-            # Try to download file
+    async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
+        """
+        Solve GAIA question with enhanced validation and reformatting
+        """
+        question = question_data.get("Question", "")
+        task_id = question_data.get("task_id", "")
+        
+        # Try to download file if task_id provided
+        file_path = None
+        if task_id:
             try:
                 file_path = self.download_gaia_file(task_id)
+                if file_path:
+                    # Load documents and create RAG tool
+                    documents = read_and_parse_content(file_path)
+                    self.create_dynamic_rag_tool(documents)
             except Exception as e:
-                print(f"Failed to download file for task {task_id}: {e}")
-                file_path = None
-    
-            context_prompt = f"""
-            GAIA Task ID: {task_id}
-            Question: {question}
-            {'File downloaded: ' + file_path if file_path else 'No additional files referenced'}
+                print(f"Failed to download/process file for task {task_id}: {e}")
+        
+        # Prepare context prompt
+        context_prompt = f"""
+GAIA Task ID: {task_id}
+Question: {question}
+{f'File available: {file_path}' if file_path else 'No additional files'}
+
+Instructions:
+1. Process any files using read_and_parse_tool if needed
+2. Use appropriate tools for research/computation
+3. MUST use intelligent_final_answer_tool with your response and the original question
+4. The intelligent tool will validate format and reformat with LLM if needed
+"""
+        
+        try:
+            ctx = Context(self.coordinator)
+            print("=== AGENT REASONING STEPS ===")
             
-            Additionnal instructions to system prompt :
-            1. If a file is available, use the analysis_tool (except for .py files).
-            2. If a link is in the question, use the research_tool.
-            """
+            handler = self.coordinator.run(ctx=ctx, user_msg=context_prompt)
             
-            try:
-                ctx = Context(self.coordinator)
-                
-                # Use streaming to see step-by-step reasoning
-                print("=== AGENT REASONING STEPS ===")
-                handler = self.coordinator.run(ctx=ctx, user_msg=context_prompt)
-                
-                full_response = ""
-                async for event in handler.stream_events():
-                    if isinstance(event, AgentStream):
-                        print(event.delta, end="", flush=True)
-                        full_response += event.delta
-                
-                # Get the final response
-                raw_response = await handler
-                print("\n=== END REASONING ===")
-                
-                # Post-process to extract exact GAIA format
-                formatted_answer = await self.format_gaia_answer(str(raw_response), question)
-                
-                print(f"Formatted answer: {formatted_answer}")
-                
-                return formatted_answer
-                
-            except Exception as e:
-                error_msg = f"Error processing question: {str(e)}"
-                print(error_msg)
-                return error_msg
+            full_response = ""
+            async for event in handler.stream_events():
+                if isinstance(event, AgentStream):
+                    print(event.delta, end="", flush=True)
+                    full_response += event.delta
+            
+            final_response = await handler
+            print("\n=== END REASONING ===")
+            
+            # Extract the final formatted answer
+            final_answer = str(final_response).strip()
+            
+            print(f"Final GAIA formatted answer: {final_answer}")
+            return final_answer
+            
+        except Exception as e:
+            error_msg = f"Error processing question: {str(e)}"
+            print(error_msg)
+            return error_msg
