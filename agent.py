@@ -64,14 +64,40 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
 logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
-model_id = "Qwen/Qwen2.5-7B-Instruct"
+def get_max_memory_config(max_memory_per_gpu):
+    """Generate max_memory config for available GPUs"""
+    if torch.cuda.is_available():
+        num_gpus = torch.cuda.device_count()
+        max_memory = {}
+        for i in range(num_gpus):
+            max_memory[i] = max_memory_per_gpu
+        return max_memory
+    return None
+
+model_id = "google/gemma-3-12b-it"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
-    device_map="auto",           # will use GPU if available
-    model_kwargs={"torch_dtype": "auto"},
+    device_map="auto",
+    model_kwargs={
+        "torch_dtype": "auto",
+        "max_memory": get_max_memory_config("10GB")
+    },
     generate_kwargs={"temperature": 0.1, "top_p": 0.3}  # More focused
 )
+
+code_llm = HuggingFaceLLM(
+    model_name="Qwen/Qwen2.5-Coder-3B",
+    tokenizer_name="Qwen/Qwen2.5-Coder-3B",
+    device_map="auto",
+    model_kwargs={
+        "torch_dtype": "auto",
+        "max_memory": get_max_memory_config("3GB")
+    },
+    # Set generation parameters for precise, non-creative code output
+    generate_kwargs={"temperature": 0.0, "do_sample": False}
+)
+
 
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
 
@@ -285,6 +311,19 @@ def search_and_extract_top_url(query: str) -> str:
     else:
         return "No URL could be extracted from the search results."
 
+
+# Create external_knowledge agent - ReAct agent with extract_url_tool and information_retrieval tool
+external_knowledge_agent = ReActAgent(
+    name="external_knowledge_agent", 
+    description="Retrieves information from external sources and documents",
+    system_prompt="You are an information retrieval specialist. You find and extract relevant information from external sources, URLs, and documents to answer queries.""",
+    tools=[extract_url_tool, information_retrieval_tool],
+    llm=proj_llm,
+    max_steps=6,
+    verbose=True,
+    callback_manager=callback_manager,
+)
+
 # 3. Create the final, customized FunctionTool for the agent.
 # This is the tool you will actually give to your agent.
 extract_url_tool = FunctionTool.from_defaults(
@@ -295,6 +334,16 @@ extract_url_tool = FunctionTool.from_defaults(
     )
 )
 
+import importlib.util
+import sys
+
+def safe_import(module_name):
+    """Safely import a module, return None if not available"""
+    try:
+        return __import__(module_name)
+    except ImportError:
+        return None
+
 safe_globals = {
     "__builtins__": {
         "len": len, "str": str, "int": int, "float": float,
@@ -303,64 +352,64 @@ safe_globals = {
         "range": range, "zip": zip, "map": map, "filter": filter,
         "any": any, "all": all, "type": type, "isinstance": isinstance,
         "print": print, "open": open, "bool": bool, "set": set, "tuple": tuple
-    },
-    # Core Python modules
-    "math": __import__("math"),
-    "datetime": __import__("datetime"),
-    "re": __import__("re"),
-    "os": __import__("os"),
-    "sys": __import__("sys"),
-    "json": __import__("json"),
-    "csv": __import__("csv"),
-    "random": __import__("random"),
-    "itertools": __import__("itertools"),
-    "collections": __import__("collections"),
-    "functools": __import__("functools"),
-    
-    # Data Science and Numerical Computing
-    "numpy": __import__("numpy"),
-    "np": __import__("numpy"),
-    "pandas": __import__("pandas"),
-    "pd": __import__("pandas"),
-    "scipy": __import__("scipy"),
-    
-    # Visualization
-    "matplotlib": __import__("matplotlib"),
-    "plt": __import__("matplotlib.pyplot"),
-    "seaborn": __import__("seaborn"),
-    "sns": __import__("seaborn"),
-    "plotly": __import__("plotly"),
-    
-    # Machine Learning
-    "sklearn": __import__("sklearn"),
-    "xgboost": __import__("xgboost"),
-    "lightgbm": __import__("lightgbm"),
-    
-    # Statistics
-    "statistics": __import__("statistics"),
-    "statsmodels": __import__("statsmodels"),
-    
-    # Image Processing
-    "PIL": __import__("PIL"),
-    "cv2": __import__("cv2"),
-    "skimage": __import__("skimage"),
-        
-    # Time Series
-    "pytz": __import__("pytz"),
-    
-    # Utilities
-    "tqdm": __import__("tqdm"),
-    "pickle": __import__("pickle"),
-    "gzip": __import__("gzip"),
-    "base64": __import__("base64"),
-    "hashlib": __import__("hashlib"),
-    
-    # Scientific Computing
-    "sympy": __import__("sympy"),
-
-    # llama-index
-    "llama-index" : __import__("llama_index")
+    }
 }
+
+# Core modules (always available)
+core_modules = [
+    "math", "datetime", "re", "os", "sys", "json", "csv", "random",
+    "itertools", "collections", "functools", "operator", "copy",
+    "decimal", "fractions", "uuid", "typing", "statistics", "pathlib",
+    "glob", "shutil", "tempfile", "pickle", "gzip", "zipfile", "tarfile",
+    "base64", "hashlib", "secrets", "hmac", "textwrap", "string",
+    "difflib", "socket", "ipaddress", "logging", "warnings", "traceback",
+    "pprint", "threading", "queue", "sqlite3", "urllib", "html", "xml",
+    "configparser"
+]
+
+for module in core_modules:
+    imported = safe_import(module)
+    if imported:
+        safe_globals[module] = imported
+
+# Data science modules (may not be available)
+optional_modules = {
+    "numpy": "numpy",
+    "np": "numpy", 
+    "pandas": "pandas",
+    "pd": "pandas",
+    "scipy": "scipy",
+    "matplotlib": "matplotlib",
+    "plt": "matplotlib.pyplot",
+    "seaborn": "seaborn",
+    "sns": "seaborn",
+    "plotly": "plotly",
+    "sklearn": "sklearn",
+    "statsmodels": "statsmodels",
+    "PIL": "PIL",
+    "skimage": "skimage",
+    "pytz": "pytz",
+    "requests": "requests",
+    "bs4": "bs4",
+    "sympy": "sympy",
+    "tqdm": "tqdm",
+    "yaml": "yaml",
+    "toml": "toml"
+}
+
+for alias, module_name in optional_modules.items():
+    imported = safe_import(module_name)
+    if imported:
+        safe_globals[alias] = imported
+
+# Special cases
+if safe_globals.get("bs4"):
+    safe_globals["BeautifulSoup"] = safe_globals["bs4"].BeautifulSoup
+
+if safe_globals.get("PIL"):
+    image_module = safe_import("PIL.Image")
+    if image_module:
+        safe_globals["Image"] = image_module
 
 def execute_python_code(code: str) -> str:
     try: 
@@ -376,83 +425,20 @@ def execute_python_code(code: str) -> str:
         return f"Code execution failed: {str(e)}"
 
 code_execution_tool = FunctionTool.from_defaults(
-fn=execute_python_code,
-name="Python Code Execution",
-description="Execute Python code safely for calculations and data processing"
+    fn=execute_python_code,
+    name="Python Code Execution",
+    description="Executes Python code safely for calculations and data processing"
 )
 
-import re
-from llama_index.core.tools import FunctionTool
-from llama_index.llms.huggingface import HuggingFaceLLM
-
-# --- 1. Initialize a dedicated LLM for Code Generation ---
-# It's good practice to use a model specifically fine-tuned for coding.
-# This model is loaded only once for efficiency.
-code_llm = HuggingFaceLLM(
-    model_name="Qwen/Qwen2.5-Coder-3B",
-    tokenizer_name="Qwen/Qwen2.5-Coder-3B",
-    device_map="auto",
-    model_kwargs={"torch_dtype": "auto"},
-    # Set generation parameters for precise, non-creative code output
-    generate_kwargs={"temperature": 0.0, "do_sample": False}
-)
-
-def generate_python_code(query: str) -> str:
-    """
-    Generates executable Python code based on a natural language query.
-
-    Args:
-        query: A detailed description of the desired functionality for the Python code.
-
-    Returns:
-        A string containing only the generated Python code, ready for execution.
-    """
-    if not code_llm:
-        return "Error: Code generation model is not available."
-
-    # --- 2. Create a precise prompt for the code model ---
-    # This prompt explicitly asks for only code, no explanations.
-    prompt = f"""
-Your task is to generate ONLY the Python code for the following request.
-Do not include any explanations, introductory text, or markdown formatting like '```python'.
-The output must be a single, clean block of Python code.
-
-IMPORTANT LIMITATIONS:
-Your code will be executed in a restricted environment with limited functions and modules.
-{str(safe_globals)}
-Only use the functions and modules listed above. Do not use imports or other built-in functions.
-
-Request: "{query}"
-
-Python Code:
-"""
-
-    # --- 3. Generate the response and post-process it ---
-    response = code_llm.complete(prompt)
-    raw_code = str(response)
-
-    # --- 4. Clean the output to ensure it's pure code ---
-    # Models often wrap code in markdown fences, this removes them.
-    code_match = re.search(r"```(?:python)?\n(.*)```", raw_code, re.DOTALL)
-    if code_match:
-        # Extract the code from within the markdown block
-        return code_match.group(1).strip()
-    else:
-        # If no markdown, assume the model followed instructions and return the text directly
-        return raw_code.strip()
-
-
-# --- 5. Create the LlamaIndex Tool from the function ---
-generate_code_tool = FunctionTool.from_defaults(
-    fn=generate_python_code,
-    name="generate_python_code_tool",
-    description=(
-        "Use this tool to generate executable Python code ONLY for mathematical calculations and problem solving. "
-        "This tool is specifically designed for numerical computations, statistical analysis, algebraic operations, "
-        "mathematical modeling, and scientific calculations."
-        "DO NOT use this tool for document processing, text manipulation, or data parsing - use appropriate specialized tools instead."
-        "The tool returns a string containing only the Python code for mathematical operations."
-    )
+code_agent = ReActAgent(
+    name="code_agent",
+    description="Handles Python code for calculations and data processing",
+    system_prompt="You are a Python programming specialist. You work with Python code to perform calculations, data analysis, and mathematical operations.",
+    tools=[code_execution_tool],
+    llm=code_llm,
+    max_steps=6,
+    verbose=True,
+    callback_manager=callback_manager,
 )
 
 def clean_response(response: str) -> str:
@@ -540,15 +526,6 @@ def final_answer_tool(agent_response: str, question: str) -> str:
     
     return formatted_answer
 
-# Create the simplified final answer tool
-final_answer_function_tool = FunctionTool.from_defaults(
-    fn=final_answer_tool,
-    name="final_answer_tool",
-    description=(
-        "Use this tool to format the final answer according to GAIA requirements. "
-        "Input the agent's response and the original question to get properly formatted output."
-    )
-)
 
 class EnhancedGAIAAgent:
     def __init__(self):
@@ -559,28 +536,9 @@ class EnhancedGAIAAgent:
         if not hf_token:
             print("Warning: HUGGINGFACEHUB_API_TOKEN not found, some features may not work")
         
-        # Initialize only the tools that are actually defined in the file
-        self.available_tools = [
-            extract_url_tool,
-            read_and_parse_tool,
-            information_retrieval_tool,
-            code_execution_tool,
-            generate_code_tool,
-        ]
-                
-        # Create main coordinator using only defined tools
-        self.coordinator = ReActAgent(
-            name="GAIACoordinator",
-            system_prompt="""
-You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
-""",
-            llm=proj_llm,
-            tools=self.available_tools,
-            max_steps=15,
-            verbose=True,
-            callback_manager=callback_manager,
-        )
-    
+        self.coordinator = AgentWorkflow(
+            agents=[external_knowledge_agent, code_agent],
+            root_agent="external_knowledge_agent")    
     
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
@@ -618,8 +576,7 @@ You are a general AI assistant. I will ask you a question. Report your thoughts,
 GAIA Task ID: {task_id}
 Question: {question}
 {f'File available: {file_path}' if file_path else 'No additional files'}
-"""
-        
+You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""",        
         try:
             ctx = Context(self.coordinator)
             print("=== AGENT REASONING STEPS ===")
