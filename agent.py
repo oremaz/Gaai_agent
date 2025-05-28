@@ -174,15 +174,10 @@ def read_and_parse_content(input_path: str) -> List[Document]:
     return documents
 
 # --- Create the final LlamaIndex Tool from the completed function ---
-read_and_parse_tool = FunctionTool.from_defaults(
-    fn=read_and_parse_content,
-    name="read_and_parse_tool",
-    description=(
-        "Use this tool to read and extract content from any given file or URL. "
-        "It handles PDF, DOCX, CSV, JSON, XLSX, and image files, as well as web pages, "
-        "YouTube videos (transcripts), and MP3 audio (transcripts). It also reads plain text "
-        "from files like .py or .txt. The input MUST be a single valid file path or a URL."
-    )
+extract_url_tool = FunctionTool.from_defaults(
+    fn=search_and_extract_top_url,
+    name="extract_url_tool",
+    description="Searches web and returns a relevant URL based on a query"
 )
 
 def create_rag_tool_fn(documents: List[Document], query: str = None) -> Union[QueryEngineTool, str]:
@@ -274,16 +269,9 @@ def information_retrieval_fn (paths : List[str],  query : str = None) -> Union[Q
 information_retrieval_tool = FunctionTool.from_defaults(
     fn=information_retrieval_fn,
     name="information_retrieval_tool",
-    description=(
-        "This is the BEST and OPTIMAL tool to query information from documents parsed from URLs or files. "
-        "Use this tool to build a Retrieval Augmented Generation (RAG) engine from documents AND optionally query it immediately. "
-        "Input: documents (list of documents) and optional query parameter. "
-        "If no query is provided: creates and returns a RAG query engine tool for later use. "
-        "If query is provided: creates the RAG engine AND immediately returns the answer to your question. "
-        "ALWAYS use this tool when you need to retrieve specific information from documents obtained via URLs or file. "
-        "This dual-mode tool enables both RAG engine creation and direct question-answering in one step, making it the most efficient approach for document-based information retrieval."
-    )
+    description="Retrieves and queries information from documents, URLs, or files using RAG"
 )
+
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
 base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
