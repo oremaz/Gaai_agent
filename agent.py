@@ -536,9 +536,9 @@ class EnhancedGAIAAgent:
         if not hf_token:
             print("Warning: HUGGINGFACEHUB_API_TOKEN not found, some features may not work")
         
-        self.coordinator = AgentWorkflow(
-            agents=[external_knowledge_agent, code_agent],
-            root_agent="external_knowledge_agent")    
+    self.coordinator = AgentWorkflow(
+        agents=[external_knowledge_agent, code_agent],
+        root_agent="external_knowledge_agent")    
     
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
