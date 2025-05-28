@@ -239,8 +239,14 @@ def create_rag_tool_fn(documents: List[Document], query: str = None) -> Union[Qu
     
     return rag_engine_tool
 
+def information_retrieval_fn (paths : List[str],  query : str = None) -> Union[QueryEngineTool, str]:
+    docs = []
+    for path in paths : 
+        docs.append(read_and_parse_content(path))
+    return create_rag_tool_fn(docs,query)
+    
 information_retrieval_tool = FunctionTool.from_defaults(
-    fn=create_rag_tool_fn,
+    fn=information_retrieval_fn,
     name="information_retrieval_tool",
     description=(
         "This is the BEST and OPTIMAL tool to query information from documents parsed from URLs or files. "
