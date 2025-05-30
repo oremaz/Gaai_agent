@@ -114,15 +114,8 @@ Settings.callback_manager = callback_manager
 def read_and_parse_content(input_path: str) -> List[Document]:
     """
     Reads and parses content from a file path or URL into Document objects.
-    It automatically detects the input type and uses the appropriate LlamaIndex reader.
-
-    Args:
-        input_path: A local file path or a web URL.
-
-    Returns:
-        A list of LlamaIndex Document objects with the extracted text.
     """
-    # --- Completed readers map for various local file types ---
+    # --- Readers map sans initialisation prématurée ---
     readers_map = {
         # Documents
         '.pdf': PDFReader(),
@@ -132,11 +125,8 @@ def read_and_parse_content(input_path: str) -> List[Document]:
         '.csv': CSVReader(),
         '.json': JSONReader(),
         '.xlsx': PandasExcelReader(),
-        # Media files
-        '.jpg': ImageReader(),
-        '.jpeg': ImageReader(),
-        '.png': ImageReader(),
-        '.mp3': AssemblyAIAudioTranscriptReader(input_path),
+        # Audio files - traitement spécial
+        # '.mp3': sera géré séparément
     }
 
     # --- URL Handling ---
@@ -155,11 +145,25 @@ def read_and_parse_content(input_path: str) -> List[Document]:
         
         file_extension = os.path.splitext(input_path)[1].lower()
 
+        if file_extension in ['.mp3', '.mp4', '.wav', '.m4a', '.flac']:
+            try:
+                loader = AssemblyAIAudioTranscriptReader(file_path=input_path)
+                documents = loader.load_data()
+                return documents
+            except Exception as e:
+                return [Document(text=f"Error transcribing audio: {e}")]
+
+        if file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+            return [Document(
+                text=f"IMAGE_PATH:{input_path}",
+                metadata={"source": input_path, "type": "image", "path": input_path}
+            )]
+
         if file_extension in readers_map:
             loader = readers_map[file_extension]
             documents = loader.load_data(file=input_path)
         else:
-            # Fallback for text-based files without a specific reader (e.g., .py, .txt, .md)
+            # Fallback pour les fichiers texte
             try:
                 with open(input_path, 'r', encoding='utf-8') as f:
                     content = f.read()
@@ -167,7 +171,7 @@ def read_and_parse_content(input_path: str) -> List[Document]:
             except Exception as e:
                 return [Document(text=f"Error reading file as plain text: {e}")]
     
-    # Add the source path to metadata for traceability
+    # Ajouter les métadonnées de source
     for doc in documents:
         doc.metadata["source"] = input_path
         
