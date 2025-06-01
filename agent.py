@@ -97,7 +97,7 @@ code_llm = HuggingFaceLLM(
     generate_kwargs={"temperature": 0.0, "do_sample": False}
 )
 
-model = HuggingFaceEmbedding(
+embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
     device="cpu",  # "mps" for mac, "cuda" for nvidia GPUs
     trust_remote_code=True,
