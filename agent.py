@@ -29,7 +29,6 @@ from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
-from llama_index.readers.file import PDFReader, DocxReader, CSVReader, ImageReader, PandasExcelReader
 from llama_index.readers.json import JSONReader
 from llama_index.readers.web import TrafilaturaWebReader
 from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
@@ -358,7 +357,6 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         else:
             loader = TrafilaturaWebReader (include_images = True)
             documents = loader.load_data(urls=[url])
-
 
 def enhanced_web_search_and_update(query: str) -> str:
     """
