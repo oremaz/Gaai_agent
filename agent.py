@@ -101,7 +101,10 @@ embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
     device="cpu",  # "mps" for mac, "cuda" for nvidia GPUs
     trust_remote_code=True,
-)
+    model_kwargs={
+        "torch_dtype": torch.float16,
+        "device_map": "auto"  # Optional: for better GPU memory management
+    })
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
@@ -261,9 +264,12 @@ class DynamicQueryEngineManager:
                 )
                 self.visual_reranker = ColPaliRerank(
                     top_n=3,
-                    device = "cpu"
+                    device="cpu",
+                    model_kwargs={
+                        "torch_dtype": torch.float16,
+                        "device_map": "auto"
+                    }
                 )
-            
             def postprocess_nodes(self, nodes, query_bundle):
                 # Your exact implementation
                 text_nodes = []
