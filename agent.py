@@ -355,8 +355,13 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
             loader = YoutubeTranscriptReader()
             documents = loader.load_data(youtubelinks=[url])
         else:
-            loader = TrafilaturaWebReader (include_images = True)
+            loader = TrafilaturaWebReader(include_images=True)
             documents = loader.load_data(urls=[url])
+    except Exception as e:
+        # Handle any exceptions that occur during content extraction
+        return [Document(text=f"Error extracting content from URL: {str(e)}")]
+    
+    return documents
 
 def enhanced_web_search_and_update(query: str) -> str:
     """
