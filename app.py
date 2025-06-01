@@ -89,6 +89,7 @@ async def run_and_submit_all( profile: gr.OAuthProfile | None):
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
+        print(question_text)
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
