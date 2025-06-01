@@ -16,7 +16,7 @@ from llama_index.core import VectorStoreIndex, Document, Settings
 from llama_index.core.agent.workflow import FunctionAgent, ReActAgent, AgentStream
 from llama_index.core.callbacks.base import CallbackManager
 from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
-from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
+from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser, UnstructuredElementNodeParser
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import VectorIndexRetriever
