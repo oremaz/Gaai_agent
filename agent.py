@@ -265,11 +265,7 @@ class DynamicQueryEngineManager:
                 )
                 self.visual_reranker = ColPaliRerank(
                     top_n=3,
-                    device="cpu",
-                    model_kwargs={
-                        "torch_dtype": torch.float32,  # Use float32 for CPU
-                        "low_cpu_mem_usage": True,     # Still get memory optimization
-                    }
+                    device="cpu"
                 )
             def postprocess_nodes(self, nodes, query_bundle):
                 # Your exact implementation
