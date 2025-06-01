@@ -61,3 +61,5 @@ pytz
 tqdm
 sympy
 torch
+unstructured
+lxml
