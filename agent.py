@@ -54,12 +54,10 @@ from llama_index.core.query_pipeline import QueryPipeline
 import importlib.util
 import sys
 
-
-# Comprehensive callback manager
-callback_manager = CallbackManager([
-    wandb_callback,     # For W&B tracking
-    llama_debug        # For general debugging
-])
+wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
+wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
+llama_debug = LlamaDebugHandler(print_trace_on_end=True)
+callback_manager = CallbackManager([wandb_callback, llama_debug])
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
@@ -99,12 +97,7 @@ code_llm = HuggingFaceLLM(
     generate_kwargs={"temperature": 0.0, "do_sample": False}
 )
 
-embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
-
-wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
-wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
-llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-callback_manager = CallbackManager([wandb_callback, llama_debug])
+embed_model = HuggingFaceEmbedding("BAAI/bge-visualized-m3")
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
