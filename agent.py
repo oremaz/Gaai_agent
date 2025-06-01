@@ -4,6 +4,7 @@ import os
 import re
 from typing import Dict, Any, List
 from urllib.parse import urlparse
+import torch
 
 # Third-party imports
 import requests
@@ -34,6 +35,7 @@ from llama_index.readers.web import TrafilaturaWebReader
 from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
 from llama_index.tools.arxiv import ArxivToolSpec
 from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
+from llama_index.core.agent.workflow import AgentWorkflow
 
 # --- Import all required official LlamaIndex Readers ---
 from llama_index.readers.file import (
@@ -53,8 +55,6 @@ from llama_index.core.query_pipeline import QueryPipeline
 import importlib.util
 import sys
 
-wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
-llama_debug = LlamaDebugHandler(print_trace_on_end=True)
 
 # Comprehensive callback manager
 callback_manager = CallbackManager([
@@ -100,7 +100,6 @@ code_llm = HuggingFaceLLM(
     generate_kwargs={"temperature": 0.0, "do_sample": False}
 )
 
-
 embed_model = HuggingFaceEmbedding("BAAI/bge-small-en-v1.5")
 
 wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
@@ -111,7 +110,6 @@ callback_manager = CallbackManager([wandb_callback, llama_debug])
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
 Settings.callback_manager = callback_manager
-
 
 def read_and_parse_content(input_path: str) -> List[Document]:
     """
@@ -177,13 +175,6 @@ def read_and_parse_content(input_path: str) -> List[Document]:
 
     return documents
 
-# --- Create the final LlamaIndex Tool from the completed function ---
-extract_url_tool = FunctionTool.from_defaults(
-    fn=search_and_extract_top_url,
-    name="extract_url_tool",
-    description="Searches web and returns a relevant URL based on a query"
-)
-
 class DynamicQueryEngineManager:
     """Single unified manager for all RAG operations - replaces the entire static approach."""
     
@@ -205,27 +196,67 @@ class DynamicQueryEngineManager:
         print(f"Loaded {len(self.documents)} initial documents")
     
     def _create_rag_tool(self):
-        """Create RAG tool using your sophisticated logic."""
+        """Create RAG tool using multimodal-aware parsing."""
         documents = self.documents if self.documents else [
             Document(text="No documents loaded yet. Use web search to add content.")
         ]
         
-        # Your exact sophisticated RAG logic from create_rag_tool_fn
-        hierarchical_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=[2048, 512, 128])
-        sentence_window_parser = SentenceWindowNodeParser.from_defaults(
-            window_size=3,
-            window_metadata_key="window",
-            original_text_metadata_key="original_text",
-        )
+        # Separate text and image documents for proper processing
+        text_documents = []
+        image_documents = []
         
-        if len(documents) > 5:
-            nodes = hierarchical_parser.get_nodes_from_documents(documents)
-        else:
-            nodes = sentence_window_parser.get_nodes_from_documents(documents)
+        for doc in documents:
+            doc_type = doc.metadata.get("type", "")
+            source = doc.metadata.get("source", "").lower()
+            file_type = doc.metadata.get("file_type", "")
+            
+            # Identify image documents
+            if (doc_type in ["image", "web_image"] or 
+                file_type in ['jpg', 'png', 'jpeg', 'gif', 'bmp', 'webp'] or
+                any(ext in source for ext in ['.jpg', '.png', '.jpeg', '.gif', '.bmp', '.webp'])):
+                image_documents.append(doc)
+            else:
+                text_documents.append(doc)
+        
+        # Use UnstructuredElementNodeParser for text content with multimodal awareness
+        element_parser = UnstructuredElementNodeParser()
+        
+        nodes = []
+        
+        # Process text documents with UnstructuredElementNodeParser
+        if text_documents:
+            try:
+                text_nodes = element_parser.get_nodes_from_documents(text_documents)
+                nodes.extend(text_nodes)
+            except Exception as e:
+                print(f"Error parsing text documents with UnstructuredElementNodeParser: {e}")
+                # Fallback to simple parsing if UnstructuredElementNodeParser fails
+                from llama_index.core.node_parser import SimpleNodeParser
+                simple_parser = SimpleNodeParser.from_defaults(chunk_size=1024, chunk_overlap=200)
+                text_nodes = simple_parser.get_nodes_from_documents(text_documents)
+                nodes.extend(text_nodes)
+        
+        # Process image documents as ImageNodes
+        if image_documents:
+            for img_doc in image_documents:
+                try:
+                    image_node = ImageNode(
+                        text=img_doc.text or f"Image content from {img_doc.metadata.get('source', 'unknown')}",
+                        metadata=img_doc.metadata,
+                        image_path=img_doc.metadata.get("path"),
+                        image=img_doc.metadata.get("image_data")
+                    )
+                    nodes.append(image_node)
+                except Exception as e:
+                    print(f"Error creating ImageNode: {e}")
+                    # Fallback to regular TextNode for images
+                    text_node = TextNode(
+                        text=img_doc.text or f"Image content from {img_doc.metadata.get('source', 'unknown')}",
+                        metadata=img_doc.metadata
+                    )
+                    nodes.append(text_node)
         
         index = VectorStoreIndex(nodes)
-        
-        # Your HybridReranker class (exact same implementation)
         class HybridReranker:
             def __init__(self):
                 self.text_reranker = SentenceTransformerRerank(
@@ -304,7 +335,6 @@ dynamic_qe_manager = DynamicQueryEngineManager()
 # This tool returns text summaries of search results, not just URLs.
 base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
-
 def search_and_extract_content_from_url(query: str) -> List[Document]:
     """
     Searches web, gets top URL, and extracts both text content and images.
@@ -327,7 +357,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
             documents = loader.load_data(youtubelinks=[url])
         else:
             loader = TrafilaturaWebReader (include_images = True)
-            documents = loader.load_data(youtubelinks=[url])
+            documents = loader.load_data(urls=[url])
 
 
 def enhanced_web_search_and_update(query: str) -> str:
