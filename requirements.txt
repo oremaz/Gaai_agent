@@ -21,6 +21,7 @@ llama-index-readers-web>=0.1.0
 llama-index-readers-youtube-transcript>=0.1.0
 llama-index-readers-json>=0.1.0
 llama-index-readers-assemblyai>=0.1.0
+llama-index-postprocessor-colpali-rerank
 
 # Document processing
 pypdf>=3.0.0
