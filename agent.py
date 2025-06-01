@@ -97,7 +97,11 @@ code_llm = HuggingFaceLLM(
     generate_kwargs={"temperature": 0.0, "do_sample": False}
 )
 
-embed_model = HuggingFaceEmbedding("BAAI/bge-visualized-m3")
+model = HuggingFaceEmbedding(
+    model_name="llamaindex/vdr-2b-multi-v1",
+    device="cpu",  # "mps" for mac, "cuda" for nvidia GPUs
+    trust_remote_code=True,
+)
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
