@@ -21,6 +21,7 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
+from llama_index.postprocessor.colpali_rerank import ColPaliRerank
 
 # LlamaIndex specialized imports
 from llama_index.callbacks.wandb import WandbCallbackHandler
@@ -40,7 +41,6 @@ from llama_index.readers.file import (
     DocxReader,
     CSVReader,
     PandasExcelReader,
-    ImageReader,
 )
 from typing import List, Union
 from llama_index.core import VectorStoreIndex, Document, Settings
@@ -50,6 +50,8 @@ from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.query_pipeline import QueryPipeline
 
+import importlib.util
+import sys
 
 wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
@@ -113,68 +115,66 @@ Settings.callback_manager = callback_manager
 
 def read_and_parse_content(input_path: str) -> List[Document]:
     """
-    Reads and parses content from a file path or URL into Document objects.
+    Reads and parses content from a local file path into Document objects.
+    URL handling has been moved to search_and_extract_top_url.
     """
-    # --- Readers map sans initialisation prématurée ---
+    # Remove URL handling - this will now only handle local files
+    if not os.path.exists(input_path):
+        return [Document(text=f"Error: File not found at {input_path}")]
+
+    file_extension = os.path.splitext(input_path)[1].lower()
+    
+    # Readers map
     readers_map = {
-        # Documents
         '.pdf': PDFReader(),
         '.docx': DocxReader(),
         '.doc': DocxReader(),
-        # Data files
         '.csv': CSVReader(),
         '.json': JSONReader(),
         '.xlsx': PandasExcelReader(),
-        # Audio files - traitement spécial
-        # '.mp3': sera géré séparément
     }
 
-    # --- URL Handling ---
-    if input_path.startswith("http"):
-        if "youtube" in urlparse(input_path):
-            loader = YoutubeTranscriptReader()
-            documents = loader.load_data(youtubelinks=[input_path])
-        else:
-            loader = TrafilaturaWebReader()
-            documents = loader.load_data(urls=[input_path])
-    
-    # --- Local File Handling ---
-    else:
-        if not os.path.exists(input_path):
-            return [Document(text=f"Error: File not found at {input_path}")]
-        
-        file_extension = os.path.splitext(input_path)[1].lower()
+    if file_extension in ['.mp3', '.mp4', '.wav', '.m4a', '.flac']:
+        try:
+            loader = AssemblyAIAudioTranscriptReader(file_path=input_path)
+            documents = loader.load_data()
+            return documents
+        except Exception as e:
+            return [Document(text=f"Error transcribing audio: {e}")]
 
-        if file_extension in ['.mp3', '.mp4', '.wav', '.m4a', '.flac']:
-            try:
-                loader = AssemblyAIAudioTranscriptReader(file_path=input_path)
-                documents = loader.load_data()
-                return documents
-            except Exception as e:
-                return [Document(text=f"Error transcribing audio: {e}")]
-
-        if file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+    if file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+        # Load the actual image content, not just the path
+        try:
+            with open(input_path, 'rb') as f:
+                image_data = f.read()
             return [Document(
-                text=f"IMAGE_PATH:{input_path}",
-                metadata={"source": input_path, "type": "image", "path": input_path}
+                text=f"IMAGE_CONTENT_BINARY",
+                metadata={
+                    "source": input_path, 
+                    "type": "image", 
+                    "path": input_path,
+                    "image_data": image_data  # Store actual image data
+                }
             )]
+        except Exception as e:
+            return [Document(text=f"Error reading image: {e}")]
 
-        if file_extension in readers_map:
-            loader = readers_map[file_extension]
-            documents = loader.load_data(file=input_path)
-        else:
-            # Fallback pour les fichiers texte
-            try:
-                with open(input_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                documents = [Document(text=content, metadata={"source": input_path})]
-            except Exception as e:
-                return [Document(text=f"Error reading file as plain text: {e}")]
-    
-    # Ajouter les métadonnées de source
+    if file_extension in readers_map:
+        loader = readers_map[file_extension]
+        documents = loader.load_data(file=input_path)
+    else:
+        # Fallback for text files
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            documents = [Document(text=content, metadata={"source": input_path})]
+        except Exception as e:
+            return [Document(text=f"Error reading file as plain text: {e}")]
+
+    # Add source metadata
     for doc in documents:
         doc.metadata["source"] = input_path
-        
+
     return documents
 
 # --- Create the final LlamaIndex Tool from the completed function ---
@@ -184,150 +184,183 @@ extract_url_tool = FunctionTool.from_defaults(
     description="Searches web and returns a relevant URL based on a query"
 )
 
-def create_rag_tool_fn(documents: List[Document], query: str = None) -> Union[QueryEngineTool, str]:
-    """
-    Creates a RAG query engine tool from documents with advanced indexing and querying capabilities.
+class DynamicQueryEngineManager:
+    """Single unified manager for all RAG operations - replaces the entire static approach."""
     
-    This function implements a sophisticated RAG pipeline using hierarchical or sentence-window parsing
-    depending on document count, vector indexing, and reranking for optimal information retrieval.
-    
-    Args:
-        documents (List[Document]): A list of LlamaIndex Document objects from read_and_parse_tool.
-                                   Must not be empty to create a valid RAG engine.
-        query (str, optional): If provided, immediately queries the created RAG engine and returns
-                              the answer as a string. If None, returns the QueryEngineTool for later use.
-                              Defaults to None.
-    
-    Returns:
-        Union[QueryEngineTool, str]: 
-            - QueryEngineTool: When query=None, returns a tool configured for agent use with
-                              advanced reranking and similarity search capabilities.
-            - str: When query is provided, returns the direct answer from the RAG engine.
-            - None: When documents list is empty.
-    
-    Examples:
-        Create a RAG tool for later use:
-        >>> rag_tool = create_rag_tool_fn(documents)
+    def __init__(self, initial_documents: List[str] = None):
+        self.documents = []
+        self.query_engine_tool = None
         
-        Get immediate answer from documents:
-        >>> answer = create_rag_tool_fn(documents, query="What is the main topic?")
-        """
-    if not documents:
-        return None
-
-    # --- 1. Node Parsing (from your 'create_advanced_index' logic) ---
-    # Using the exact parsers and logic you defined.
-    hierarchical_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=[2048, 512, 128])
-    sentence_window_parser = SentenceWindowNodeParser.from_defaults(
-        window_size=3,
-        window_metadata_key="window",
-        original_text_metadata_key="original_text",
-    )
+        # Load initial documents if provided
+        if initial_documents:
+            self._load_initial_documents(initial_documents)
+        
+        self._create_rag_tool()
     
-    # Choose parser based on document count
-    if len(documents) > 5: # Heuristic for using hierarchical parser
-        nodes = hierarchical_parser.get_nodes_from_documents(documents)
-    else:
-        nodes = sentence_window_parser.get_nodes_from_documents(documents)
-
-    # --- 2. Index Creation ---
-    # Assumes Settings.embed_model is configured globally as in your snippet
-    index = VectorStoreIndex(nodes)
-
-    # --- 3. Query Engine Creation (from your 'create_context_aware_query_engine' logic) ---
-    # Using the exact reranker you specified
-    reranker = SentenceTransformerRerank(
-        model="cross-encoder/ms-marco-MiniLM-L-2-v2", 
-        top_n=5
-    )
+    def _load_initial_documents(self, document_paths: List[str]):
+        """Load initial documents using read_and_parse_content."""
+        for path in document_paths:
+            docs = read_and_parse_content(path)
+            self.documents.extend(docs)
+        print(f"Loaded {len(self.documents)} initial documents")
     
-    query_engine = index.as_query_engine(
-        similarity_top_k=10,
-        node_postprocessors=[reranker],
-        # Assumes Settings.llm is configured globally
-    )
-    
-    # --- 4. Wrap the Query Engine in a Tool ---
-    rag_engine_tool = QueryEngineTool.from_defaults(
-        query_engine=query_engine,
-        name="rag_engine_tool",
-        description=(
-            "Use this tool to ask questions and query the content of documents that have already "
-            "been loaded. This is your primary way to find answers from the provided context. "
-            "The input is a natural language question about the documents' content."
+    def _create_rag_tool(self):
+        """Create RAG tool using your sophisticated logic."""
+        documents = self.documents if self.documents else [
+            Document(text="No documents loaded yet. Use web search to add content.")
+        ]
+        
+        # Your exact sophisticated RAG logic from create_rag_tool_fn
+        hierarchical_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=[2048, 512, 128])
+        sentence_window_parser = SentenceWindowNodeParser.from_defaults(
+            window_size=3,
+            window_metadata_key="window",
+            original_text_metadata_key="original_text",
         )
-    )
-
-    if query : 
-        result = rag_engine_tool.query_engine.query(query)
-        return str(result)
+        
+        if len(documents) > 5:
+            nodes = hierarchical_parser.get_nodes_from_documents(documents)
+        else:
+            nodes = sentence_window_parser.get_nodes_from_documents(documents)
+        
+        index = VectorStoreIndex(nodes)
+        
+        # Your HybridReranker class (exact same implementation)
+        class HybridReranker:
+            def __init__(self):
+                self.text_reranker = SentenceTransformerRerank(
+                    model="cross-encoder/ms-marco-MiniLM-L-2-v2", 
+                    top_n=3
+                )
+                self.visual_reranker = ColPaliRerank(
+                    top_n=3,
+                    model_name="vidore/colpali-v1.2",
+                    device="cuda"
+                )
+            
+            def postprocess_nodes(self, nodes, query_bundle):
+                # Your exact implementation
+                text_nodes = []
+                visual_nodes = []
+                
+                for node in nodes:
+                    if (hasattr(node, 'image_path') and node.image_path) or \
+                       (hasattr(node, 'metadata') and node.metadata.get('file_type') in ['jpg', 'png', 'jpeg', 'pdf']) or \
+                       (hasattr(node, 'metadata') and node.metadata.get('type') in ['image', 'web_image']):
+                        visual_nodes.append(node)
+                    else:
+                        text_nodes.append(node)
+                
+                reranked_text = []
+                reranked_visual = []
+                
+                if text_nodes:
+                    reranked_text = self.text_reranker.postprocess_nodes(text_nodes, query_bundle)
+                
+                if visual_nodes:
+                    reranked_visual = self.visual_reranker.postprocess_nodes(visual_nodes, query_bundle)
+                
+                combined_results = []
+                max_len = max(len(reranked_text), len(reranked_visual))
+                
+                for i in range(max_len):
+                    if i < len(reranked_text):
+                        combined_results.append(reranked_text[i])
+                    if i < len(reranked_visual):
+                        combined_results.append(reranked_visual[i])
+                
+                return combined_results[:5]
+        
+        hybrid_reranker = HybridReranker()
+        
+        query_engine = index.as_query_engine(
+            similarity_top_k=10,
+            node_postprocessors=[hybrid_reranker],
+        )
+        
+        self.query_engine_tool = QueryEngineTool.from_defaults(
+            query_engine=query_engine,
+            name="dynamic_hybrid_multimodal_rag_tool",
+            description=(
+                "Advanced dynamic knowledge base with hybrid reranking. "
+                "Uses ColPali for visual content and SentenceTransformer for text content. "
+                "Automatically updated with web search content."
+            )
+        )
     
-    return rag_engine_tool
-
-def information_retrieval_fn (paths : List[str],  query : str = None) -> Union[QueryEngineTool, str]:
-    docs = []
-    for path in paths : 
-        docs.append(read_and_parse_content(path))
-    return create_rag_tool_fn(docs,query)
+    def add_documents(self, new_documents: List[Document]):
+        """Add documents from web search and recreate tool."""
+        self.documents.extend(new_documents)
+        self._create_rag_tool()  # Recreate with ALL documents
+        print(f"Added {len(new_documents)} documents. Total: {len(self.documents)}")
     
-information_retrieval_tool = FunctionTool.from_defaults(
-    fn=information_retrieval_fn,
-    name="information_retrieval_tool",
-    description="Retrieves and queries information from documents, URLs, or files using RAG"
-)
+    def get_tool(self):
+        return self.query_engine_tool
+ 
+# Global instance
+dynamic_qe_manager = DynamicQueryEngineManager()
 
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
 base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
-# 2. Define a wrapper function to post-process the output.
-def search_and_extract_top_url(query: str) -> str:
+
+def search_and_extract_content_from_url(query: str) -> List[Document]:
     """
-    Takes a search query, uses the base DuckDuckGo search tool to get results,
-    and then parses the output to extract and return only the first URL.
-    Args:
-        query: The natural language search query.
-    Returns:
-        A string containing the first URL found, or an error message if none is found.
+    Searches web, gets top URL, and extracts both text content and images.
+    Returns a list of Document objects containing the extracted content.
     """
-    # Call the base tool to get the search results as text
-    search_results = base_duckduckgo_tool(query, max_results = 1)
-    print(search_results)
-    
-    # Use a regular expression to find the first URL in the text output
-    # The \S+ pattern matches any sequence of non-whitespace characters
+    # Get URL from search
+    search_results = base_duckduckgo_tool(query, max_results=1)
     url_match = re.search(r"https?://\S+", str(search_results))
     
-    if url_match:
-        return url_match.group(0)[:-2]
+    if not url_match:
+        return [Document(text="No URL could be extracted from the search results.")]
+    
+    url = url_match.group(0)[:-2]
+    documents = []
+    
+    try:
+        # Check if it's a YouTube URL
+        if "youtube" in urlparse(url).netloc:
+            loader = YoutubeTranscriptReader()
+            documents = loader.load_data(youtubelinks=[url])
+        else:
+            loader = TrafilaturaWebReader (include_images = True)
+            documents = loader.load_data(youtubelinks=[url])
+
+
+def enhanced_web_search_and_update(query: str) -> str:
+    """
+    Performs web search, extracts content, and adds it to the dynamic query engine.
+    """
+    # Extract content from web search
+    documents = search_and_extract_content_from_url(query)
+    
+    # Add documents to the dynamic query engine
+    if documents and not any("Error" in doc.text for doc in documents):
+        dynamic_qe_manager.add_documents(documents)
+        
+        # Return summary of what was added
+        text_docs = [doc for doc in documents if doc.metadata.get("type") == "web_text"]
+        image_docs = [doc for doc in documents if doc.metadata.get("type") == "web_image"]
+        
+        summary = f"Successfully added web content to knowledge base:\n"
+        summary += f"- {len(text_docs)} text documents\n"
+        summary += f"- {len(image_docs)} images\n"
+        summary += f"Source: {documents[0].metadata.get('source', 'Unknown')}"
+        
+        return summary
     else:
-        return "No URL could be extracted from the search results."
+        error_msg = documents[0].text if documents else "No content extracted"
+        return f"Failed to extract web content: {error_msg}"
 
-
-# Create external_knowledge agent - ReAct agent with extract_url_tool and information_retrieval tool
-external_knowledge_agent = ReActAgent(
-    name="external_knowledge_agent", 
-    description="Retrieves information from external sources and documents",
-    system_prompt="You are an information retrieval specialist. You find and extract relevant information from external sources, URLs, and documents to answer queries.""",
-    tools=[extract_url_tool, information_retrieval_tool],
-    llm=proj_llm,
-    max_steps=6,
-    verbose=True,
-    callback_manager=callback_manager,
+# Create the enhanced web search tool
+enhanced_web_search_tool = FunctionTool.from_defaults(
+    fn=enhanced_web_search_and_update,
+    name="enhanced_web_search",
+    description="Search the web, extract content and images, and add them to the knowledge base for future queries."
 )
-
-# 3. Create the final, customized FunctionTool for the agent.
-# This is the tool you will actually give to your agent.
-extract_url_tool = FunctionTool.from_defaults(
-    fn=search_and_extract_top_url,
-    name="extract_url_tool",
-    description=(
-        "Use this tool when you need to find a relevant URL to answer a question. It takes a search query as input and returns a single, relevant URL."
-    )
-)
-
-import importlib.util
-import sys
 
 def safe_import(module_name):
     """Safely import a module, return None if not available"""
@@ -420,17 +453,6 @@ code_execution_tool = FunctionTool.from_defaults(
     fn=execute_python_code,
     name="Python Code Execution",
     description="Executes Python code safely for calculations and data processing"
-)
-
-code_agent = ReActAgent(
-    name="code_agent",
-    description="Handles Python code for calculations and data processing",
-    system_prompt="You are a Python programming specialist. You work with Python code to perform calculations, data analysis, and mathematical operations.",
-    tools=[code_execution_tool],
-    llm=code_llm,
-    max_steps=6,
-    verbose=True,
-    callback_manager=callback_manager,
 )
 
 def clean_response(response: str) -> str:
@@ -528,9 +550,43 @@ class EnhancedGAIAAgent:
         if not hf_token:
             print("Warning: HUGGINGFACEHUB_API_TOKEN not found, some features may not work")
         
-    self.coordinator = AgentWorkflow(
-        agents=[external_knowledge_agent, code_agent],
-        root_agent="external_knowledge_agent")    
+        # Initialize the dynamic query engine manager
+        self.dynamic_qe_manager = DynamicQueryEngineManager()
+        
+        # Create enhanced agents with dynamic tools
+        self.external_knowledge_agent = ReActAgent(
+            name="external_knowledge_agent", 
+            description="Advanced information retrieval with dynamic knowledge base",
+            system_prompt="""You are an advanced information specialist with a sophisticated RAG system. 
+            Your knowledge base uses hybrid reranking and grows dynamically with each web search and document addition.
+            Always add relevant content to your knowledge base, then query it for answers.""",
+            tools=[
+                enhanced_web_search_tool,
+                self.dynamic_qe_manager.get_tool(),
+                code_execution_tool
+            ],
+            llm=proj_llm,
+            max_steps=8,
+            verbose=True,
+            callback_manager=callback_manager,
+        )
+        
+        self.code_agent = ReActAgent(
+            name="code_agent",
+            description="Handles Python code for calculations and data processing",
+            system_prompt="You are a Python programming specialist. You work with Python code to perform calculations, data analysis, and mathematical operations.",
+            tools=[code_execution_tool],
+            llm=code_llm,
+            max_steps=6,
+            verbose=True,
+            callback_manager=callback_manager,
+        )
+        
+        # Fixed indentation: coordinator initialization inside __init__
+        self.coordinator = AgentWorkflow(
+            agents=[self.external_knowledge_agent, self.code_agent],
+            root_agent="external_knowledge_agent"
+        )
     
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
@@ -546,32 +602,56 @@ class EnhancedGAIAAgent:
             print(f"Failed to download file for task {task_id}: {e}")
             return None
     
+    def add_documents_to_knowledge_base(self, file_path: str):
+        """Add downloaded GAIA documents to the dynamic knowledge base"""
+        try:
+            documents = read_and_parse_content(file_path)
+            if documents:
+                self.dynamic_qe_manager.add_documents(documents)
+                print(f"Added {len(documents)} documents from {file_path} to dynamic knowledge base")
+                
+                # Update the agent's tools with the refreshed query engine
+                self.external_knowledge_agent.tools = [
+                    enhanced_web_search_tool,
+                    self.dynamic_qe_manager.get_tool(),  # Get the updated tool
+                    code_execution_tool
+                ]
+                return True
+        except Exception as e:
+            print(f"Failed to add documents from {file_path}: {e}")
+            return False
+    
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         """
-        Solve GAIA question with enhanced validation and reformatting
+        Solve GAIA question with dynamic knowledge base integration
         """
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
         
-        # Try to download file if task_id provided
+        # Try to download and add file to knowledge base if task_id provided
         file_path = None
         if task_id:
             try:
                 file_path = self.download_gaia_file(task_id)
                 if file_path:
-                    documents = read_and_parse_content(file_path)
+                    # Add documents to dynamic knowledge base
+                    self.add_documents_to_knowledge_base(file_path)
+                    print(f"Successfully integrated GAIA file into dynamic knowledge base")
             except Exception as e:
                 print(f"Failed to download/process file for task {task_id}: {e}")
         
-        # Prepare context prompt
+        # Enhanced context prompt with dynamic knowledge base awareness
         context_prompt = f"""
 GAIA Task ID: {task_id}
 Question: {question}
-{f'File available: {file_path}' if file_path else 'No additional files'}
-You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.""",        
+{f'File processed and added to knowledge base: {file_path}' if file_path else 'No additional files'}
+
+You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
+        
         try:
             ctx = Context(self.coordinator)
             print("=== AGENT REASONING STEPS ===")
+            print(f"Dynamic knowledge base contains {len(self.dynamic_qe_manager.documents)} documents")
             
             handler = self.coordinator.run(ctx=ctx, user_msg=context_prompt)
             
@@ -588,9 +668,18 @@ You are a general AI assistant. I will ask you a question. Report your thoughts,
             final_answer = str(final_response).strip()
             
             print(f"Final GAIA formatted answer: {final_answer}")
+            print(f"Knowledge base now contains {len(self.dynamic_qe_manager.documents)} documents")
+            
             return final_answer
             
         except Exception as e:
             error_msg = f"Error processing question: {str(e)}"
             print(error_msg)
             return error_msg
+    
+    def get_knowledge_base_stats(self):
+        """Get statistics about the current knowledge base"""
+        return {
+            "total_documents": len(self.dynamic_qe_manager.documents),
+            "document_sources": [doc.metadata.get("source", "Unknown") for doc in self.dynamic_qe_manager.documents]
+        }
