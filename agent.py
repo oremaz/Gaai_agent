@@ -99,12 +99,13 @@ code_llm = HuggingFaceLLM(
 
 embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
-    device="cpu",  # "mps" for mac, "cuda" for nvidia GPUs
+    device="cpu",
     trust_remote_code=True,
     model_kwargs={
-        "torch_dtype": torch.float16,
-        "device_map": "auto"  # Optional: for better GPU memory management
-    })
+        "torch_dtype": torch.float32,  # Use float32 for CPU
+        "low_cpu_mem_usage": True,     # Still get memory optimization
+    }
+)
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
@@ -266,8 +267,8 @@ class DynamicQueryEngineManager:
                     top_n=3,
                     device="cpu",
                     model_kwargs={
-                        "torch_dtype": torch.float16,
-                        "device_map": "auto"
+                        "torch_dtype": torch.float32,  # Use float32 for CPU
+                        "low_cpu_mem_usage": True,     # Still get memory optimization
                     }
                 )
             def postprocess_nodes(self, nodes, query_bundle):
