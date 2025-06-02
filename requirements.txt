@@ -37,7 +37,7 @@ duckduckgo-search>=3.0.0
 arxiv>=1.4.0
 
 # Monitoring and logging
-wandb>=0.15.0
+wandb>=0.17.0
 
 # Utilities
 scipy>=1.10.0
@@ -63,4 +63,3 @@ sympy
 torch
 unstructured
 lxml
-fastapi==0.112.2
