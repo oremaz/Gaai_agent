@@ -42,7 +42,7 @@ wandb>=0.15.0
 # Utilities
 scipy>=1.10.0
 tqdm>=4.65.0
-numpy == 1.26.4
+numpy
 pandas
 scipy
 matplotlib
