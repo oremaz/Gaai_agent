@@ -63,3 +63,4 @@ sympy
 torch
 unstructured
 lxml
+fastapi==0.112.2
