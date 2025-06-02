@@ -265,6 +265,8 @@ class DynamicQueryEngineManager:
                 )
                 self.visual_reranker = ColPaliRerank(
                     top_n=3,
+                    model="vidore/colpali-v1.2",
+                    keep_retrieval_score=True,
                     device="cpu"
                 )
             def postprocess_nodes(self, nodes, query_bundle):
