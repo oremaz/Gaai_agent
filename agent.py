@@ -85,10 +85,10 @@ proj_llm = HuggingFaceLLM(
 code_llm = HuggingFaceLLM(
     model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
     tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+    device_map: "cpu",           # Specify device here instead
     model_kwargs={
         "torch_dtype": torch.float32,  # Use float32 for CPU
         "low_cpu_mem_usage": True,     # Memory optimization
-        "device_map": "cpu",           # Specify device here instead
     },
     # Set generation parameters for precise, non-creative code output
     generate_kwargs={"temperature": 0.0, "do_sample": False}
