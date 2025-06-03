@@ -67,7 +67,7 @@ def get_max_memory_config(max_memory_per_gpu):
         return max_memory
     return None
 
-model_id = "deepseek/deepseek-r1-0528-qwen3-8b"
+model_id = "deepseek-ai/DeepSeek-R1-0528-Qwen3-8B"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
