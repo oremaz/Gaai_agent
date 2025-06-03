@@ -30,7 +30,7 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
 from llama_index.readers.json import JSONReader
-from llama_index.readers.web import TrafilaturaWebReader
+from llama_index.readers.web import BeautifulSoupWebReader
 from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
 from llama_index.tools.arxiv import ArxivToolSpec
 from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
@@ -355,7 +355,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
             loader = YoutubeTranscriptReader()
             documents = loader.load_data(youtubelinks=[url])
         else:
-            loader = TrafilaturaWebReader()
+            loader = BeautifulSoupWebReader()
             documents = loader.load_data(urls=[url])
         for doc in documents:
             doc.metadata["source"] = url
