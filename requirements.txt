@@ -36,7 +36,7 @@ duckduckgo-search>=3.0.0
 arxiv>=1.4.0
 
 # Monitoring and logging
-wandb>=0.15.0
+weave
 
 # Utilities
 scipy>=1.10.0
