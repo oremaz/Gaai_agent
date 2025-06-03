@@ -717,3 +717,17 @@ You are a general AI assistant. I will ask you a question. Report your thoughts,
             "total_documents": len(self.dynamic_qe_manager.documents),
             "document_sources": [doc.metadata.get("source", "Unknown") for doc in self.dynamic_qe_manager.documents]
         }
+
+import asyncio
+
+async def main():
+    agent = EnhancedGAIAAgent()
+    question_data = {
+        "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.",
+        "task_id": ""
+    }
+    answer = await agent.solve_gaia_question(question_data)
+    print(f"Answer: {answer}")
+
+if __name__ == '__main__':
+    asyncio.run(main())
