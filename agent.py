@@ -73,7 +73,7 @@ proj_llm = HuggingFaceLLM(
     tokenizer_name=model_id,
     device_map="auto",
     model_kwargs={"torch_dtype": "auto"},
-    max_new_tokens = 100000,
+    max_new_tokens = 32000,
     generate_kwargs={
         "temperature": 0.1,
         "top_p": 1.0
@@ -89,7 +89,7 @@ code_llm = HuggingFaceLLM(
         "low_cpu_mem_usage": True,     # Memory optimization
     },
     # Set generation parameters for precise, non-creative code output
-    generate_kwargs={"temperature": 0.0, "do_sample": False}
+    generate_kwargs={"do_sample": False}
 )
 
 embed_model = HuggingFaceEmbedding(
