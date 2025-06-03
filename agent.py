@@ -346,6 +346,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         return [Document(text="No URL could be extracted from the search results.")]
     
     url = url_match.group(0)[:-2]
+    print(url)
     documents = []
     
     try:
@@ -359,6 +360,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         for doc in documents:
             doc.metadata["source"] = url
             doc.metadata["type"] = "web_text"
+        print(documents)
         return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
