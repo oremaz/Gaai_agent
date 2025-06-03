@@ -41,8 +41,7 @@ from llama_index.readers.file import (
     PDFReader,
     DocxReader,
     CSVReader,
-    PandasExcelReader,
-)
+    PandasExcelReader)
 from typing import List, Union
 from llama_index.core import VectorStoreIndex, Document, Settings
 from llama_index.core.tools import QueryEngineTool
@@ -57,13 +56,6 @@ import sys
 import weave
 weave.init("gaia-llamaindex-agents")
 
-# Keep only the debug handler
-llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-callback_manager = CallbackManager([llama_debug])
-
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
-logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
 def get_max_memory_config(max_memory_per_gpu):
     """Generate max_memory config for available GPUs"""
@@ -105,6 +97,12 @@ embed_model = HuggingFaceEmbedding(
         "low_cpu_mem_usage": True,     # Still get memory optimization
     }
 )
+llama_debug = LlamaDebugHandler(print_trace_on_end=True)
+callback_manager = CallbackManager([llama_debug])
+
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
+logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
@@ -304,8 +302,9 @@ class DynamicQueryEngineManager:
         hybrid_reranker = HybridReranker()
         
         query_engine = index.as_query_engine(
-            similarity_top_k=10,
+            similarity_top_k=20,
             node_postprocessors=[hybrid_reranker],
+            response_mode="tree_summarize"
         )
         
         self.query_engine_tool = QueryEngineTool.from_defaults(
@@ -351,18 +350,20 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
     
     try:
         # Check if it's a YouTube URL
-        if "youtube" in urlparse(url).netloc:
+        if "youtube" in urlparse(url).netloc or "youtu.be" in urlparse(url).netloc:
             loader = YoutubeTranscriptReader()
             documents = loader.load_data(youtubelinks=[url])
         else:
             loader = TrafilaturaWebReader()
             documents = loader.load_data(urls=[url])
+        for doc in documents:
+            doc.metadata["source"] = url
+            doc.metadata["type"] = "web_text"
+        return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
         return [Document(text=f"Error extracting content from URL: {str(e)}")]
     
-    return documents
-
 def enhanced_web_search_and_update(query: str) -> str:
     """
     Performs web search, extracts content, and adds it to the dynamic query engine.
