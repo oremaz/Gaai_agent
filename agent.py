@@ -8,7 +8,6 @@ import torch
 
 # Third-party imports
 import requests
-import wandb
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # LlamaIndex core imports
@@ -56,10 +55,12 @@ from llama_index.core.query_pipeline import QueryPipeline
 import importlib.util
 import sys
 
-wandb.init(project="gaia-llamaindex-agents")  # Choisis ton nom de projet
-wandb_callback = WandbCallbackHandler(run_args={"project": "gaia-llamaindex-agents"})
+import weave
+weave.init("gaia-llamaindex-agents")
+
+# Keep only the debug handler
 llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-callback_manager = CallbackManager([wandb_callback, llama_debug])
+callback_manager = CallbackManager([llama_debug])
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
