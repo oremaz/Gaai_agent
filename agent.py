@@ -23,6 +23,8 @@ from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
 from llama_index.postprocessor.colpali_rerank import ColPaliRerank
+from llama_index.core.schema import ImageNode, TextNode
+
 
 # LlamaIndex specialized imports
 from llama_index.callbacks.wandb import WandbCallbackHandler
