@@ -67,13 +67,13 @@ def get_max_memory_config(max_memory_per_gpu):
         return max_memory
     return None
 
-model_id = "google/gemma-3-12b-it"
+model_id = "deepseek/deepseek-r1-0528-qwen3-8b"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
     device_map="auto",
     model_kwargs={"torch_dtype": "auto"},
-    generate_kwargs={"temperature": 0.1, "top_p": 0.3}  # More focused
+    generate_kwargs={"temperature": 0.1, "top_p": 1.0}  # More focused
 )
 
 code_llm = HuggingFaceLLM(
