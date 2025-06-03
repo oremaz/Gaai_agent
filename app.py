@@ -172,7 +172,7 @@ with gr.Blocks() as demo:
         """
     )
 
-    gr.LoginButton()
+    login_button = gr.LoginButton()
     login_button.activate()
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
