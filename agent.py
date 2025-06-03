@@ -26,7 +26,6 @@ from llama_index.core.schema import ImageNode, TextNode
 
 
 # LlamaIndex specialized imports
-from llama_index.callbacks.wandb import WandbCallbackHandler
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
 from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
