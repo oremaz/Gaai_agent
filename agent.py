@@ -63,7 +63,7 @@ def get_max_memory_config(max_memory_per_gpu):
         return max_memory
     return None
 
-model_id = "Qwen/Qwen3-8B"
+model_id = "Qwen/Qwen3-14B-FP8"
 proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
