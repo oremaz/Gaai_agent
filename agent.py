@@ -54,10 +54,9 @@ import sys
 import weave
 weave.init("gaia-llamaindex-agents")
 from llama_index.core import set_global_handler
-from llama_index.core.callbacks import WeaveCallbackHandler
 
 # Set Weave as the global callback handler
-set_global_handler(WeaveCallbackHandler())
+set_global_handler("weave")
 
 def get_max_memory_config(max_memory_per_gpu):
     """Generate max_memory config for available GPUs"""
