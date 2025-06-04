@@ -357,7 +357,6 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         for doc in documents:
             doc.metadata["source"] = url
             doc.metadata["type"] = "web_text"
-        print(documents)
         return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
