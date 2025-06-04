@@ -71,15 +71,16 @@ proj_llm = HuggingFaceLLM(
     max_new_tokens = 16000,
     model_kwargs={"torch_dtype": "auto"},
     generate_kwargs={
-        "temperature": 0.1,
-        "top_p": 1.0
+        "temperature": 0.6,
+        "top_p": 0.95, 
+        "top_k" = 20
     }
 )
 
 code_llm = HuggingFaceLLM(
     model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
     tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-    device_map= "auto",           # Specify device here instead
+    device_map= "auto",      
     model_kwargs={
         "torch_dtype": "auto"},
     # Set generation parameters for precise, non-creative code output
