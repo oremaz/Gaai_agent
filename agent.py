@@ -13,8 +13,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # LlamaIndex core imports
 from llama_index.core import VectorStoreIndex, Document, Settings
 from llama_index.core.agent.workflow import FunctionAgent, ReActAgent, AgentStream
-from llama_index.core.callbacks.base import CallbackManager
-from llama_index.core.callbacks.llama_debug import LlamaDebugHandler
 from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser, UnstructuredElementNodeParser
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.query_engine import RetrieverQueryEngine
@@ -55,7 +53,11 @@ import sys
 
 import weave
 weave.init("gaia-llamaindex-agents")
+from llama_index.core.global_handler import set_global_handler
+from llama_index.core.callbacks import WeaveCallbackHandler
 
+# Set Weave as the global callback handler
+set_global_handler(WeaveCallbackHandler())
 
 def get_max_memory_config(max_memory_per_gpu):
     """Generate max_memory config for available GPUs"""
@@ -101,8 +103,6 @@ embed_model = HuggingFaceEmbedding(
         "low_cpu_mem_usage": True,     # Still get memory optimization
     }
 )
-llama_debug = LlamaDebugHandler(print_trace_on_end=True)
-callback_manager = CallbackManager([llama_debug])
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
@@ -110,7 +110,6 @@ logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
-Settings.callback_manager = callback_manager
 
 def read_and_parse_content(input_path: str) -> List[Document]:
     """
@@ -607,9 +606,7 @@ class EnhancedGAIAAgent:
             ],
             llm=proj_llm,
             max_steps=8,
-            verbose=True,
-            callback_manager=callback_manager,
-        )
+            verbose=True)
         
         self.code_agent = ReActAgent(
             name="code_agent",
@@ -618,9 +615,7 @@ class EnhancedGAIAAgent:
             tools=[code_execution_tool],
             llm=code_llm,
             max_steps=6,
-            verbose=True,
-            callback_manager=callback_manager,
-        )
+            verbose=True)
         
         # Fixed indentation: coordinator initialization inside __init__
         self.coordinator = AgentWorkflow(
