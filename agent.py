@@ -717,6 +717,7 @@ async def main():
         "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.",
         "task_id": ""
     }
+    print(question_data)
     answer = await agent.solve_gaia_question(question_data)
     print(f"Answer: {answer}")
 
