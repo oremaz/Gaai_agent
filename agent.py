@@ -69,7 +69,6 @@ proj_llm = HuggingFaceLLM(
     tokenizer_name=model_id,
     device_map="auto",
     model_kwargs={"torch_dtype": "auto"},
-    max_new_tokens = 8000,
     generate_kwargs={
         "temperature": 0.1,
         "top_p": 1.0
@@ -79,23 +78,18 @@ proj_llm = HuggingFaceLLM(
 code_llm = HuggingFaceLLM(
     model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
     tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-    device_map= "cpu",           # Specify device here instead
+    device_map= "auto",           # Specify device here instead
     model_kwargs={
-        "torch_dtype": "auto",  # Use float32 for CPU
-        "low_cpu_mem_usage": True,     # Memory optimization
-    },
+        "torch_dtype": "auto"},
     # Set generation parameters for precise, non-creative code output
     generate_kwargs={"do_sample": False}
 )
 
 embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
-    device="cpu",
+    device="auto",
     trust_remote_code=True,
-    model_kwargs={
-        "torch_dtype": "auto",  # Use float32 for CPU
-        "low_cpu_mem_usage": True,     # Still get memory optimization
-    }
+    model_kwargs={"torch_dtype": "auto"}
 )
 
 logging.basicConfig(level=logging.INFO)
