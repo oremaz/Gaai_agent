@@ -68,6 +68,7 @@ proj_llm = HuggingFaceLLM(
     model_name=model_id,
     tokenizer_name=model_id,
     device_map="auto",
+    max_new_tokens = 16000,
     model_kwargs={"torch_dtype": "auto"},
     generate_kwargs={
         "temperature": 0.1,
