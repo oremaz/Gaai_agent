@@ -60,5 +60,7 @@ pytz
 tqdm
 sympy
 torch
+torchvision 
+torchaudio
 unstructured
 lxml
