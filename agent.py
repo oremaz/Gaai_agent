@@ -53,7 +53,7 @@ import sys
 
 import weave
 weave.init("gaia-llamaindex-agents")
-from llama_index.core.global_handler import set_global_handler
+from llama_index.core import set_global_handler
 from llama_index.core.callbacks import WeaveCallbackHandler
 
 # Set Weave as the global callback handler
