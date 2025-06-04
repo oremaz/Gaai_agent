@@ -87,7 +87,7 @@ code_llm = HuggingFaceLLM(
 
 embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
-    device_map="auto",
+    device="cuda",
     trust_remote_code=True,
     model_kwargs={"torch_dtype": "auto"}
 )
