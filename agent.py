@@ -89,7 +89,10 @@ embed_model = HuggingFaceEmbedding(
     model_name="llamaindex/vdr-2b-multi-v1",
     device="cpu",
     trust_remote_code=True,
-    model_kwargs={"torch_dtype": "auto"}
+    model_kwargs={
+        "torch_dtype": "auto",
+        "low_cpu_mem_usage": True
+    }
 )
 
 logging.basicConfig(level=logging.INFO)
