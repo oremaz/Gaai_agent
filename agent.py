@@ -209,8 +209,7 @@ def initialize_models(use_api_mode=False):
             # Embedding model
             embed_model = HuggingFaceEmbedding(
                 model_name="nomic-ai/colnomic-embed-multimodal-3b",
-                device="cuda:1",
-                trust_remote_code=True)
+                device="cuda:1")
 
             return proj_llm, code_llm, embed_model
         except Exception as e:
