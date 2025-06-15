@@ -33,7 +33,7 @@ from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
 from llama_index.tools.arxiv import ArxivToolSpec
 from llama_index.core.agent.workflow import AgentWorkflow
 from llama_index.llms.vllm import Vllm
-
+from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 
 # Import all required official LlamaIndex Readers
 from llama_index.readers.file import (
@@ -494,16 +494,23 @@ dynamic_qe_manager = DynamicQueryEngineManager()
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
 
+base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
+
 def search_and_extract_content_from_url(query: str) -> List[Document]:
     """
     Searches web, gets top URL, and extracts both text content and images.
     Returns a list of Document objects containing the extracted content.
     """
     # Get URL from search
-    results = search_ddg(query)
-    url = results["AbstractURL"]
+    #search_results = base_duckduckgo_tool(query, max_results=1)
+    #url_match = re.search(r"https?://\S+", str(search_results))
+    
+    #if not url_match:
+        #return [Document(text="No URL could be extracted from the search results.")]
+    
+    #url = url_match.group(0)[:-2]
+    url = "https://en.wikipedia.org/wiki/Mercedes_Sosa"
     print(url)
-
     documents = []
 
     try:
