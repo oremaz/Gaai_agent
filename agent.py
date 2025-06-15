@@ -141,9 +141,6 @@ def initialize_models(use_api_mode=False):
                     top_p=0.95,
                     top_k=20
                 )
-                else:
-                    # Use regular Qwen model if Pixtral not found
-                    raise ImportError("Pixtral 12B not found")
             except (ImportError, Exception) as e:
                 print(f"Error loading Pixtral with vLLM: {e}")
                 print(f"Falling back to {pixtral_model} with HuggingFace...")
