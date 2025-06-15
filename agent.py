@@ -941,6 +941,8 @@ If you are asked for a comma separated list, apply the above rules depending of 
         }
 
 async def main():
+
+    res = enhanced_web_search_and_update("test")
     agent = EnhancedGAIAAgent()
 
     question_data = {
