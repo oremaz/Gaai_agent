@@ -116,49 +116,23 @@ def initialize_models(use_api_mode=False):
     else:
         # Non-API Mode - Using HuggingFace models
         print("Initializing models in non-API mode with local models...")
-        try:
-            # Try to use Pixtral 12B with vLLM if available
-            pixtral_model = "Qwen/Qwen3-8B"  # Fallback model
-            try:
-                pixtral_model = "mistralai/Pixtral-12B-2409"
-                print(f"Using Pixtral 12B with vLLM")
 
-                # Custom prompt template for Pixtral model
-                def messages_to_prompt(messages):
-                    prompt = "\n".join([str(x) for x in messages])
-                    return f"<s>[INST] {prompt} [/INST] </s>\n"
-
-                def completion_to_prompt(completion):
-                    return f"<s>[INST] {completion} [/INST] </s>\n"
-
-                proj_llm = Vllm(
-                    model=pixtral_model,
-                    tensor_parallel_size=1,  # Adjust based on available GPUs
-                    max_new_tokens=16000,
-                    messages_to_prompt=messages_to_prompt,
-                    completion_to_prompt=completion_to_prompt,
-                    temperature=0.6,
-                    top_p=0.95,
-                    top_k=20
-                )
-            except (ImportError, Exception) as e:
-                print(f"Error loading Pixtral with vLLM: {e}")
-                print(f"Falling back to {pixtral_model} with HuggingFace...")
-
-                # Fallback to regular HuggingFace LLM
-                proj_llm = HuggingFaceLLM(
-                    model_name=pixtral_model,
-                    tokenizer_name=pixtral_model,
-                    device_map="auto",
-                    max_new_tokens=16000,
-                    model_kwargs={"torch_dtype": "auto"},
-                    generate_kwargs={
-                        "temperature": 0.6,
-                        "top_p": 0.95,
-                        "top_k": 20
-                    }
-                )
-
+        try : 
+            pixtral_model = "Prarabdha/pixtral-12b-240910-hf"
+            # Fallback to regular HuggingFace LLM
+            proj_llm = HuggingFaceLLM(
+                model_name=pixtral_model,
+                tokenizer_name=pixtral_model,
+                device_map="auto",
+                max_new_tokens=16000,
+                model_kwargs={"torch_dtype": "auto"},
+                generate_kwargs={
+                    "temperature": 0.6,
+                    "top_p": 0.95,
+                    "top_k": 20
+                }
+            )
+    
             # Code LLM
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
@@ -167,7 +141,7 @@ def initialize_models(use_api_mode=False):
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
-
+    
             # Embedding model
             embed_model = HuggingFaceEmbedding(
                 model_name="llamaindex/vdr-2b-multi-v1",
@@ -178,7 +152,7 @@ def initialize_models(use_api_mode=False):
                     "low_cpu_mem_usage": True
                 }
             )
-
+    
             return proj_llm, code_llm, embed_model
         except Exception as e:
             print(f"Error initializing models: {e}")
