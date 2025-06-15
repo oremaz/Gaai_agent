@@ -44,7 +44,7 @@ from llama_index.readers.file import (
     PandasExcelReader,
     VideoAudioReader  # Adding VideoAudioReader for handling audio/video without API
 )
-from pydantic import Field
+from pydantic import PrivateAttr
 
 # Optional API-based imports (conditionally loaded)
 try:
@@ -131,9 +131,9 @@ def initialize_models(use_api_mode=False):
                 context_window: int = 32768
                 num_output: int = 256
                 model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct"
-
-                def __init__(self):
-                    self.device = "cuda"
+                _device: str = PrivateAttr()
+                def __init__(self, device: str = "cuda", **kwargs):
+                    self._device = "cuda"
                     self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                         self.model_name, torch_dtype=torch.bfloat16, device_map="auto"
                     )
