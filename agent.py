@@ -66,15 +66,9 @@ import weave
 
 weave.init("gaia-llamaindex-agents")
 
-def get_max_memory_config(max_memory_per_gpu):
-    """Generate max_memory config for available GPUs"""
-    if torch.cuda.is_available():
-        num_gpus = torch.cuda.device_count()
-        max_memory = {}
-        for i in range(num_gpus):
-            max_memory[i] = max_memory_per_gpu
-        return max_memory
-    return None
+from transformers import get_max_memory
+
+max_mem = get_max_memory(0.9)  # 90% of each device's memory
 
 # Initialize models based on API availability
 def initialize_models(use_api_mode=False):
@@ -123,7 +117,10 @@ def initialize_models(use_api_mode=False):
                 tokenizer_name="google/gemma-3-12b-it",
                 device_map="auto",
                 max_new_tokens=16000,
-                model_kwargs={"torch_dtype": "auto"},
+                model_kwargs={
+                    "torch_dtype": "auto",
+                    "max_memory": max_mem,  # Add this line
+                },
                 generate_kwargs={
                     "temperature": 0.6,
                     "top_p": 0.95,
