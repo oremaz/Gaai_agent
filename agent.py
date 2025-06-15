@@ -120,28 +120,27 @@ def initialize_models(use_api_mode=False):
             # Try to use Pixtral 12B with vLLM if available
             pixtral_model = "Qwen/Qwen3-8B"  # Fallback model
             try:
-                if os.path.exists("/path/to/pixtral-12b") or True:  # Placeholder check
-                    pixtral_model = "mistralai/pixtral-12b"
-                    print(f"Using Pixtral 12B with vLLM")
+                pixtral_model = "mistralai/Pixtral-12B-2409"
+                print(f"Using Pixtral 12B with vLLM")
 
-                    # Custom prompt template for Pixtral model
-                    def messages_to_prompt(messages):
-                        prompt = "\n".join([str(x) for x in messages])
-                        return f"<s>[INST] {prompt} [/INST] </s>\n"
+                # Custom prompt template for Pixtral model
+                def messages_to_prompt(messages):
+                    prompt = "\n".join([str(x) for x in messages])
+                    return f"<s>[INST] {prompt} [/INST] </s>\n"
 
-                    def completion_to_prompt(completion):
-                        return f"<s>[INST] {completion} [/INST] </s>\n"
+                def completion_to_prompt(completion):
+                    return f"<s>[INST] {completion} [/INST] </s>\n"
 
-                    proj_llm = Vllm(
-                        model=pixtral_model,
-                        tensor_parallel_size=1,  # Adjust based on available GPUs
-                        max_new_tokens=16000,
-                        messages_to_prompt=messages_to_prompt,
-                        completion_to_prompt=completion_to_prompt,
-                        temperature=0.6,
-                        top_p=0.95,
-                        top_k=20
-                    )
+                proj_llm = Vllm(
+                    model=pixtral_model,
+                    tensor_parallel_size=1,  # Adjust based on available GPUs
+                    max_new_tokens=16000,
+                    messages_to_prompt=messages_to_prompt,
+                    completion_to_prompt=completion_to_prompt,
+                    temperature=0.6,
+                    top_p=0.95,
+                    top_k=20
+                )
                 else:
                     # Use regular Qwen model if Pixtral not found
                     raise ImportError("Pixtral 12B not found")
