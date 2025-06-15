@@ -396,7 +396,8 @@ class DynamicQueryEngineManager:
             def __init__(self):
                 self.text_reranker = SentenceTransformerRerank(
                     model="cross-encoder/ms-marco-MiniLM-L-2-v2",
-                    top_n=3
+                    top_n=3, 
+                    device = "cpu"
                 )
 
                 self.visual_reranker = ColPaliRerank(
