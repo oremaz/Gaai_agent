@@ -31,7 +31,6 @@ from llama_index.readers.json import JSONReader
 from llama_index.readers.web import BeautifulSoupWebReader
 from llama_index.readers.youtube_transcript import YoutubeTranscriptReader
 from llama_index.tools.arxiv import ArxivToolSpec
-from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 from llama_index.core.agent.workflow import AgentWorkflow
 from llama_index.llms.vllm import Vllm
 
@@ -45,6 +44,7 @@ from llama_index.readers.file import (
     VideoAudioReader  # Adding VideoAudioReader for handling audio/video without API
 )
 from pydantic import PrivateAttr
+from duckduckgo_search import DDGS
 
 # Optional API-based imports (conditionally loaded)
 try:
@@ -486,7 +486,6 @@ dynamic_qe_manager = DynamicQueryEngineManager()
 
 # 1. Create the base DuckDuckGo search tool from the official spec.
 # This tool returns text summaries of search results, not just URLs.
-base_duckduckgo_tool = DuckDuckGoSearchToolSpec().to_tool_list()[1]
 
 def search_and_extract_content_from_url(query: str) -> List[Document]:
     """
@@ -494,14 +493,12 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
     Returns a list of Document objects containing the extracted content.
     """
     # Get URL from search
-    search_results = base_duckduckgo_tool(query, max_results=1)
-    url_match = re.search(r"https?://\\S+", str(search_results))
+    with DDGS() as ddgs:
+        results = list(ddgs.text(query, max_results=1))
+    if not results:
+        return []
 
-    if not url_match:
-        return [Document(text="No URL could be extracted from the search results.")]
-
-    url = url_match.group(0)[:-2]
-    print(url)
+    url = results[0]['href']
 
     documents = []
 
