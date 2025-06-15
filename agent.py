@@ -899,7 +899,7 @@ async def main():
     agent = EnhancedGAIAAgent()
 
     question_data = {
-        "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.",
+        "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !",
         "task_id": ""
     }
 
