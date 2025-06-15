@@ -941,7 +941,7 @@ If you are asked for a comma separated list, apply the above rules depending of 
         }
 
 async def main():
-    #agent = EnhancedGAIAAgent()
+    agent = EnhancedGAIAAgent()
 
     question_data = {
         "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !",
@@ -950,31 +950,9 @@ async def main():
 
     print(question_data)
 
-    # Test with image
-    file_path = "test_image.jpg"
-    
-    # Test proj_llm (multimodal LLM)
-    response = proj_llm.complete(
-        prompt="Describe what you see in this image.",
-        image_paths=[file_path]
-    )
-    print(f"LLM Response: {response.text}")
-    
-    # Test embed_model with image
-    image_embedding = embed_model._get_text_embedding("", image_path=file_path)
-    print(f"Image embedding dimension: {len(image_embedding)}")
-    print(f"First 5 elements: {image_embedding[:5]}")
-    
-    # Test embed_model with text
-    text_embedding = embed_model._get_text_embedding("A red sports car")
-    print(f"Text embedding dimension: {len(text_embedding)}")
-    
-    # Test multimodal embedding (text + image)
-    multimodal_embedding = embed_model._get_query_embedding("red car", image_path=file_path)
-    print(f"Multimodal embedding dimension: {len(multimodal_embedding)}")
-
-    #answer = await agent.solve_gaia_question(question_data)   
-    #print(f"Answer: {answer}")
+   
+    answer = await agent.solve_gaia_question(question_data)   
+    print(f"Answer: {answer}")
 
 if __name__ == '__main__':
     asyncio.run(main())
