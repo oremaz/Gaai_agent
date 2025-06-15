@@ -35,6 +35,10 @@ openpyxl>=3.1.0
 pandas>=2.0.0
 Pillow>=9.0.0
 
+# Qwen
+accelerate
+qwen-vl-utils[decord]
+
 # NEW: Audio/Video processing (for VideoAudioReader)
 pydub>=0.25.1
 speechrecognition>=3.10.0
