@@ -207,7 +207,7 @@ def initialize_models(use_api_mode=False):
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
                 tokenizer_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
-                device_map="auto",
+                device_map="cpu",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
