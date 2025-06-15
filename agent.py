@@ -46,13 +46,6 @@ from llama_index.readers.file import (
 from pydantic import PrivateAttr
 
 
-import requests
-def search_ddg(query):
-    url = "https://api.duckduckgo.com/"
-    params = {"q": query, "format": "json"}
-    response = requests.get(url, params=params)
-    return response.json()
-
 # Optional API-based imports (conditionally loaded)
 try:
     # Gemini (for API mode)
@@ -529,6 +522,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
+        print(e)
         return [Document(text=f"Error extracting content from URL: {str(e)}")]
 
 def enhanced_web_search_and_update(query: str) -> str:
