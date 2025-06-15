@@ -44,7 +44,14 @@ from llama_index.readers.file import (
     VideoAudioReader  # Adding VideoAudioReader for handling audio/video without API
 )
 from pydantic import PrivateAttr
-from duckduckgo_search import DDGS
+
+
+import requests
+def search_ddg(query):
+    url = "https://api.duckduckgo.com/"
+    params = {"q": query, "format": "json"}
+    response = requests.get(url, params=params)
+    return response.json()
 
 # Optional API-based imports (conditionally loaded)
 try:
@@ -493,12 +500,8 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
     Returns a list of Document objects containing the extracted content.
     """
     # Get URL from search
-    with DDGS() as ddgs:
-        results = list(ddgs.text(query, max_results=1))
-    if not results:
-        return []
-
-    url = results[0]['href']
+    results = search_ddg(query)
+    url = results["AbstractURL"]
 
     documents = []
 
