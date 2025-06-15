@@ -68,7 +68,7 @@ weave.init("gaia-llamaindex-agents")
 
 from transformers import get_max_memory
 
-max_mem = get_max_memory(0.9)  # 90% of each device's memory
+max_mem = get_max_memory(0.75)  # 75% of each device's memory
 
 # Initialize models based on API availability
 def initialize_models(use_api_mode=False):
