@@ -20,7 +20,7 @@ llama-index-readers-youtube-transcript>=0.1.0
 llama-index-readers-json>=0.1.0
 llama-index-readers-assemblyai>=0.1.0
 llama-index-postprocessor-colpali-rerank
-duckduckgo_search
+llama-index-tools-duckduckgo>=0.1.0
 
 # NEW: API Mode Dependencies (Optional)
 llama-index-llms-gemini>=0.1.0
