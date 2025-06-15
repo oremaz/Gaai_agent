@@ -2,9 +2,10 @@
 import logging
 import os
 import re
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse
 import torch
+import asyncio
 
 # Third-party imports
 import requests
@@ -22,7 +23,6 @@ from llama_index.core.workflow import Context
 from llama_index.postprocessor.colpali_rerank import ColPaliRerank
 from llama_index.core.schema import ImageNode, TextNode
 
-
 # LlamaIndex specialized imports
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
@@ -34,25 +34,38 @@ from llama_index.tools.arxiv import ArxivToolSpec
 from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 from llama_index.core.agent.workflow import AgentWorkflow
 
-# --- Import all required official LlamaIndex Readers ---
+# Import all required official LlamaIndex Readers
 from llama_index.readers.file import (
     PDFReader,
     DocxReader,
     CSVReader,
-    PandasExcelReader)
-from typing import List, Union
-from llama_index.core import VectorStoreIndex, Document, Settings
-from llama_index.core.tools import QueryEngineTool
-from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser
-from llama_index.core.postprocessor import SentenceTransformerRerank
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.core.query_pipeline import QueryPipeline
+    PandasExcelReader,
+    VideoAudioReader  # Adding VideoAudioReader for handling audio/video without API
+)
+
+# Optional API-based imports (conditionally loaded)
+try:
+    # Gemini (for API mode)
+    from llama_index.llms.gemini import Gemini
+    from llama_index.embeddings.gemini import GeminiEmbedding
+    from llama_index_llms_vllm import Vllm
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+try:
+    # LlamaParse for document parsing (API mode)
+    from llama_cloud_services import LlamaParse
+    LLAMAPARSE_AVAILABLE = True
+except ImportError:
+    LLAMAPARSE_AVAILABLE = False
 
 import importlib.util
 import sys
-
 import weave
+
 weave.init("gaia-llamaindex-agents")
+
 def get_max_memory_config(max_memory_per_gpu):
     """Generate max_memory config for available GPUs"""
     if torch.cuda.is_available():
@@ -63,44 +76,135 @@ def get_max_memory_config(max_memory_per_gpu):
         return max_memory
     return None
 
-model_id = "Qwen/Qwen3-8B"
-proj_llm = HuggingFaceLLM(
-    model_name=model_id,
-    tokenizer_name=model_id,
-    device_map="auto",
-    max_new_tokens = 16000,
-    model_kwargs={"torch_dtype": "auto"},
-    generate_kwargs={
-        "temperature": 0.6,
-        "top_p": 0.95, 
-        "top_k": 20
-    }
-)
+# Initialize models based on API availability
+def initialize_models(use_api_mode=False):
+    """Initialize LLM, Code LLM, and Embed models based on mode"""
+    if use_api_mode and GEMINI_AVAILABLE:
+        # API Mode - Using Google's Gemini models
+        try:
+            print("Initializing models in API mode with Gemini...")
+            google_api_key = os.environ.get("GOOGLE_API_KEY")
+            if not google_api_key:
+                print("WARNING: GOOGLE_API_KEY not found. Falling back to non-API mode.")
+                return initialize_models(use_api_mode=False)
 
-code_llm = HuggingFaceLLM(
-    model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-    tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-    device_map= "auto",      
-    model_kwargs={
-        "torch_dtype": "auto"},
-    # Set generation parameters for precise, non-creative code output
-    generate_kwargs={"do_sample": False}
-)
+            # Main LLM - Gemini 2.0 Flash
+            proj_llm = Gemini(
+                model="models/gemini-2.0-flash",
+                api_key=google_api_key,
+                max_tokens=16000,
+                temperature=0.6,
+                top_p=0.95,
+                top_k=20
+            )
 
-embed_model = HuggingFaceEmbedding(
-    model_name="llamaindex/vdr-2b-multi-v1",
-    device="cpu",
-    trust_remote_code=True,
-    model_kwargs={
-        "torch_dtype": "auto",
-        "low_cpu_mem_usage": True
-    }
-)
+            # Same model for code since Gemini is good at code
+            code_llm = proj_llm
 
+            # Vertex AI multimodal embedding
+            embed_model = GeminiEmbedding(
+                model_name="models/embedding-001",
+                api_key=google_api_key,
+                task_type="retrieval_document"
+            )
+
+            return proj_llm, code_llm, embed_model
+        except Exception as e:
+            print(f"Error initializing API mode: {e}")
+            print("Falling back to non-API mode...")
+            return initialize_models(use_api_mode=False)
+    else:
+        # Non-API Mode - Using HuggingFace models
+        print("Initializing models in non-API mode with local models...")
+        try:
+            # Try to use Pixtral 12B with vLLM if available
+            pixtral_model = "Qwen/Qwen3-8B"  # Fallback model
+            try:
+                if importlib.util.find_spec("llama_index_llms_vllm") is not None:
+                    from llama_index_llms_vllm import Vllm
+                    # Check if Pixtral 12B is accessible
+                    if os.path.exists("/path/to/pixtral-12b") or True:  # Placeholder check
+                        pixtral_model = "mistralai/pixtral-12b"
+                        print(f"Using Pixtral 12B with vLLM")
+
+                        # Custom prompt template for Pixtral model
+                        def messages_to_prompt(messages):
+                            prompt = "\n".join([str(x) for x in messages])
+                            return f"<s>[INST] {prompt} [/INST] </s>\n"
+
+                        def completion_to_prompt(completion):
+                            return f"<s>[INST] {completion} [/INST] </s>\n"
+
+                        proj_llm = Vllm(
+                            model=pixtral_model,
+                            tensor_parallel_size=1,  # Adjust based on available GPUs
+                            max_new_tokens=16000,
+                            messages_to_prompt=messages_to_prompt,
+                            completion_to_prompt=completion_to_prompt,
+                            temperature=0.6,
+                            top_p=0.95,
+                            top_k=20
+                        )
+                    else:
+                        # Use regular Qwen model if Pixtral not found
+                        raise ImportError("Pixtral 12B not found")
+                else:
+                    raise ImportError("vLLM not available")
+            except (ImportError, Exception) as e:
+                print(f"Error loading Pixtral with vLLM: {e}")
+                print(f"Falling back to {pixtral_model} with HuggingFace...")
+
+                # Fallback to regular HuggingFace LLM
+                proj_llm = HuggingFaceLLM(
+                    model_name=pixtral_model,
+                    tokenizer_name=pixtral_model,
+                    device_map="auto",
+                    max_new_tokens=16000,
+                    model_kwargs={"torch_dtype": "auto"},
+                    generate_kwargs={
+                        "temperature": 0.6,
+                        "top_p": 0.95,
+                        "top_k": 20
+                    }
+                )
+
+            # Code LLM
+            code_llm = HuggingFaceLLM(
+                model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+                tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+                device_map="auto",
+                model_kwargs={"torch_dtype": "auto"},
+                generate_kwargs={"do_sample": False}
+            )
+
+            # Embedding model
+            embed_model = HuggingFaceEmbedding(
+                model_name="llamaindex/vdr-2b-multi-v1",
+                device="cpu",
+                trust_remote_code=True,
+                model_kwargs={
+                    "torch_dtype": "auto",
+                    "low_cpu_mem_usage": True
+                }
+            )
+
+            return proj_llm, code_llm, embed_model
+        except Exception as e:
+            print(f"Error initializing models: {e}")
+            raise
+
+# Setup logging
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("llama_index.core.agent").setLevel(logging.DEBUG)
 logging.getLogger("llama_index.llms").setLevel(logging.DEBUG)
 
+# Use environment variable to determine API mode
+USE_API_MODE = os.environ.get("USE_API_MODE", "false").lower() == "true"
+
+# Initialize models based on API mode setting
+proj_llm, code_llm, embed_model = initialize_models(use_api_mode=USE_API_MODE)
+
+# Set global settings
 Settings.llm = proj_llm
 Settings.embed_model = embed_model
 
@@ -109,12 +213,25 @@ def read_and_parse_content(input_path: str) -> List[Document]:
     Reads and parses content from a local file path into Document objects.
     URL handling has been moved to search_and_extract_top_url.
     """
-    # Remove URL handling - this will now only handle local files
+    # Check if API mode and LlamaParse is available for enhanced document parsing
+    if USE_API_MODE and LLAMAPARSE_AVAILABLE:
+        try:
+            llamacloud_api_key = os.environ.get("LLAMA_CLOUD_API_KEY")
+            if llamacloud_api_key:
+                # Use LlamaParse for enhanced document parsing
+                print(f"Using LlamaParse to extract content from {input_path}")
+                parser = LlamaParse(api_key=llamacloud_api_key)
+                return parser.load_data(input_path)
+        except Exception as e:
+            print(f"Error using LlamaParse: {e}")
+            print("Falling back to standard document parsing...")
+
+    # Standard document parsing (fallback)
     if not os.path.exists(input_path):
         return [Document(text=f"Error: File not found at {input_path}")]
 
     file_extension = os.path.splitext(input_path)[1].lower()
-    
+
     # Readers map
     readers_map = {
         '.pdf': PDFReader(),
@@ -125,31 +242,39 @@ def read_and_parse_content(input_path: str) -> List[Document]:
         '.xlsx': PandasExcelReader(),
     }
 
+    # Audio/Video files using the appropriate reader based on mode
     if file_extension in ['.mp3', '.mp4', '.wav', '.m4a', '.flac']:
         try:
-            loader = AssemblyAIAudioTranscriptReader(file_path=input_path)
-            documents = loader.load_data()
+            if USE_API_MODE:
+                # Use AssemblyAI with API mode
+                loader = AssemblyAIAudioTranscriptReader(file_path=input_path)
+                documents = loader.load_data()
+            else:
+                # Use VideoAudioReader without API
+                loader = VideoAudioReader()
+                documents = loader.load_data(input_path)
             return documents
         except Exception as e:
             return [Document(text=f"Error transcribing audio: {e}")]
 
+    # Handle image files
     if file_extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
-        # Load the actual image content, not just the path
         try:
             with open(input_path, 'rb') as f:
                 image_data = f.read()
             return [Document(
                 text=f"IMAGE_CONTENT_BINARY",
                 metadata={
-                    "source": input_path, 
-                    "type": "image", 
+                    "source": input_path,
+                    "type": "image",
                     "path": input_path,
-                    "image_data": image_data  # Store actual image data
+                    "image_data": image_data
                 }
             )]
         except Exception as e:
             return [Document(text=f"Error reading image: {e}")]
 
+    # Use appropriate reader for supported file types
     if file_extension in readers_map:
         loader = readers_map[file_extension]
         documents = loader.load_data(file=input_path)
@@ -170,52 +295,51 @@ def read_and_parse_content(input_path: str) -> List[Document]:
 
 class DynamicQueryEngineManager:
     """Single unified manager for all RAG operations - replaces the entire static approach."""
-    
+
     def __init__(self, initial_documents: List[str] = None):
         self.documents = []
         self.query_engine_tool = None
-        
+
         # Load initial documents if provided
         if initial_documents:
             self._load_initial_documents(initial_documents)
-        
+
         self._create_rag_tool()
-    
+
     def _load_initial_documents(self, document_paths: List[str]):
         """Load initial documents using read_and_parse_content."""
         for path in document_paths:
             docs = read_and_parse_content(path)
             self.documents.extend(docs)
         print(f"Loaded {len(self.documents)} initial documents")
-    
+
     def _create_rag_tool(self):
         """Create RAG tool using multimodal-aware parsing."""
         documents = self.documents if self.documents else [
             Document(text="No documents loaded yet. Use web search to add content.")
         ]
-        
+
         # Separate text and image documents for proper processing
         text_documents = []
         image_documents = []
-        
+
         for doc in documents:
             doc_type = doc.metadata.get("type", "")
             source = doc.metadata.get("source", "").lower()
             file_type = doc.metadata.get("file_type", "")
-            
+
             # Identify image documents
-            if (doc_type in ["image", "web_image"] or 
+            if (doc_type in ["image", "web_image"] or
                 file_type in ['jpg', 'png', 'jpeg', 'gif', 'bmp', 'webp'] or
                 any(ext in source for ext in ['.jpg', '.png', '.jpeg', '.gif', '.bmp', '.webp'])):
                 image_documents.append(doc)
             else:
                 text_documents.append(doc)
-        
+
         # Use UnstructuredElementNodeParser for text content with multimodal awareness
         element_parser = UnstructuredElementNodeParser()
-        
         nodes = []
-        
+
         # Process text documents with UnstructuredElementNodeParser
         if text_documents:
             try:
@@ -228,7 +352,7 @@ class DynamicQueryEngineManager:
                 simple_parser = SimpleNodeParser.from_defaults(chunk_size=1024, chunk_overlap=200)
                 text_nodes = simple_parser.get_nodes_from_documents(text_documents)
                 nodes.extend(text_nodes)
-        
+
         # Process image documents as ImageNodes
         if image_documents:
             for img_doc in image_documents:
@@ -248,61 +372,67 @@ class DynamicQueryEngineManager:
                         metadata=img_doc.metadata
                     )
                     nodes.append(text_node)
-        
+
         index = VectorStoreIndex(nodes)
+
         class HybridReranker:
             def __init__(self):
                 self.text_reranker = SentenceTransformerRerank(
-                    model="cross-encoder/ms-marco-MiniLM-L-2-v2", 
+                    model="cross-encoder/ms-marco-MiniLM-L-2-v2",
                     top_n=3
                 )
+
                 self.visual_reranker = ColPaliRerank(
                     top_n=3,
                     model="vidore/colpali-v1.2",
                     keep_retrieval_score=True,
                     device="cpu"
                 )
+
             def postprocess_nodes(self, nodes, query_bundle):
-                # Your exact implementation
+                # Separate text and visual nodes
                 text_nodes = []
                 visual_nodes = []
-                
+
                 for node in nodes:
-                    if (hasattr(node, 'image_path') and node.image_path) or \
-                       (hasattr(node, 'metadata') and node.metadata.get('file_type') in ['jpg', 'png', 'jpeg', 'pdf']) or \
-                       (hasattr(node, 'metadata') and node.metadata.get('type') in ['image', 'web_image']):
+                    if (hasattr(node, 'image_path') and node.image_path) or                        (hasattr(node, 'metadata') and node.metadata.get('file_type') in ['jpg', 'png', 'jpeg', 'pdf']) or                        (hasattr(node, 'metadata') and node.metadata.get('type') in ['image', 'web_image']):
                         visual_nodes.append(node)
                     else:
                         text_nodes.append(node)
-                
+
+                # Apply appropriate reranker
                 reranked_text = []
                 reranked_visual = []
-                
+
                 if text_nodes:
                     reranked_text = self.text_reranker.postprocess_nodes(text_nodes, query_bundle)
-                
+
                 if visual_nodes:
                     reranked_visual = self.visual_reranker.postprocess_nodes(visual_nodes, query_bundle)
-                
+
+                # Interleave results
                 combined_results = []
                 max_len = max(len(reranked_text), len(reranked_visual))
-                
+
                 for i in range(max_len):
                     if i < len(reranked_text):
                         combined_results.append(reranked_text[i])
                     if i < len(reranked_visual):
                         combined_results.append(reranked_visual[i])
-                
+
                 return combined_results[:5]
-        
+
         hybrid_reranker = HybridReranker()
-        
+
         query_engine = index.as_query_engine(
             similarity_top_k=20,
             node_postprocessors=[hybrid_reranker],
             response_mode="tree_summarize"
         )
-        
+
+        # Create QueryEngineTool
+        from llama_index.core.tools import QueryEngineTool
+
         self.query_engine_tool = QueryEngineTool.from_defaults(
             query_engine=query_engine,
             name="dynamic_hybrid_multimodal_rag_tool",
@@ -312,16 +442,16 @@ class DynamicQueryEngineManager:
                 "Automatically updated with web search content."
             )
         )
-    
+
     def add_documents(self, new_documents: List[Document]):
         """Add documents from web search and recreate tool."""
         self.documents.extend(new_documents)
         self._create_rag_tool()  # Recreate with ALL documents
         print(f"Added {len(new_documents)} documents. Total: {len(self.documents)}")
-    
+
     def get_tool(self):
         return self.query_engine_tool
- 
+
 # Global instance
 dynamic_qe_manager = DynamicQueryEngineManager()
 
@@ -336,15 +466,16 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
     """
     # Get URL from search
     search_results = base_duckduckgo_tool(query, max_results=1)
-    url_match = re.search(r"https?://\S+", str(search_results))
-    
+    url_match = re.search(r"https?://\\S+", str(search_results))
+
     if not url_match:
         return [Document(text="No URL could be extracted from the search results.")]
-    
+
     url = url_match.group(0)[:-2]
     print(url)
+
     documents = []
-    
+
     try:
         # Check if it's a YouTube URL
         if "youtube" in urlparse(url).netloc or "youtu.be" in urlparse(url).netloc:
@@ -353,34 +484,36 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
         else:
             loader = BeautifulSoupWebReader()
             documents = loader.load_data(urls=[url])
+
         for doc in documents:
             doc.metadata["source"] = url
             doc.metadata["type"] = "web_text"
+
         return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
         return [Document(text=f"Error extracting content from URL: {str(e)}")]
-    
+
 def enhanced_web_search_and_update(query: str) -> str:
     """
     Performs web search, extracts content, and adds it to the dynamic query engine.
     """
     # Extract content from web search
     documents = search_and_extract_content_from_url(query)
-    
+
     # Add documents to the dynamic query engine
     if documents and not any("Error" in doc.text for doc in documents):
         dynamic_qe_manager.add_documents(documents)
-        
+
         # Return summary of what was added
         text_docs = [doc for doc in documents if doc.metadata.get("type") == "web_text"]
         image_docs = [doc for doc in documents if doc.metadata.get("type") == "web_image"]
-        
+
         summary = f"Successfully added web content to knowledge base:\n"
         summary += f"- {len(text_docs)} text documents\n"
         summary += f"- {len(image_docs)} images\n"
         summary += f"Source: {documents[0].metadata.get('source', 'Unknown')}"
-        
+
         return summary
     else:
         error_msg = documents[0].text if documents else "No content extracted"
@@ -431,7 +564,7 @@ for module in core_modules:
 # Data science modules (may not be available)
 optional_modules = {
     "numpy": "numpy",
-    "np": "numpy", 
+    "np": "numpy",
     "pandas": "pandas",
     "pd": "pandas",
     "scipy": "scipy",
@@ -468,15 +601,13 @@ if safe_globals.get("PIL"):
         safe_globals["Image"] = image_module
 
 def execute_python_code(code: str) -> str:
-    try: 
+    try:
         exec_locals = {}
         exec(code, safe_globals, exec_locals)
-    
         if 'result' in exec_locals:
             return str(exec_locals['result'])
         else:
             return "Code executed successfully"
-    
     except Exception as e:
         return f"Code execution failed: {str(e)}"
 
@@ -490,21 +621,20 @@ def clean_response(response: str) -> str:
     """Clean response by removing common prefixes"""
     response_clean = response.strip()
     prefixes_to_remove = [
-        "FINAL ANSWER:", "Answer:", "The answer is:", 
-        "Based on my analysis,", "After reviewing,", 
+        "FINAL ANSWER:", "Answer:", "The answer is:",
+        "Based on my analysis,", "After reviewing,",
         "The result is:", "Final result:", "According to",
         "In conclusion,", "Therefore,", "Thus,"
     ]
-    
+
     for prefix in prefixes_to_remove:
         if response_clean.startswith(prefix):
             response_clean = response_clean[len(prefix):].strip()
-    
+
     return response_clean
 
 def llm_reformat(response: str, question: str) -> str:
     """Use LLM to reformat the response according to GAIA requirements"""
-    
     format_prompt = f"""Extract the exact answer from the response below. Follow GAIA formatting rules strictly.
 
 GAIA Format Rules:
@@ -532,17 +662,18 @@ Answer: C++, Java, Python
 Now extract the exact answer:
 Question: {question}
 Response: {response}
+
 Answer:"""
 
     try:
         # Use the global LLM instance
         formatting_response = proj_llm.complete(format_prompt)
         answer = str(formatting_response).strip()
-        
+
         # Extract just the answer after "Answer:"
         if "Answer:" in answer:
             answer = answer.split("Answer:")[-1].strip()
-        
+
         return answer
     except Exception as e:
         print(f"LLM reformatting failed: {e}")
@@ -551,46 +682,56 @@ Answer:"""
 def final_answer_tool(agent_response: str, question: str) -> str:
     """
     Simplified final answer tool using only LLM reformatting.
-    
     Args:
         agent_response: The raw response from agent reasoning
         question: The original question for context
-        
     Returns:
         Exact answer in GAIA format
     """
-    
     # Step 1: Clean the response
     cleaned_response = clean_response(agent_response)
-    
+
     # Step 2: Use LLM reformatting
     formatted_answer = llm_reformat(cleaned_response, question)
-    
+
     print(f"Original response cleaned: {cleaned_response[:100]}...")
     print(f"LLM formatted answer: {formatted_answer}")
-    
-    return formatted_answer
 
+    return formatted_answer
 
 class EnhancedGAIAAgent:
     def __init__(self):
         print("Initializing Enhanced GAIA Agent...")
-        
+
         # Vérification du token HuggingFace
-        hf_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+        hf_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
         if not hf_token:
             print("Warning: HUGGINGFACEHUB_API_TOKEN not found, some features may not work")
-        
+
         # Initialize the dynamic query engine manager
         self.dynamic_qe_manager = DynamicQueryEngineManager()
-        
+
         # Create enhanced agents with dynamic tools
         self.external_knowledge_agent = ReActAgent(
-            name="external_knowledge_agent", 
+            name="external_knowledge_agent",
             description="Advanced information retrieval with dynamic knowledge base",
-            system_prompt="""You are an advanced information specialist with a sophisticated RAG system. 
-            Your knowledge base uses hybrid reranking and grows dynamically with each web search and document addition.
-            Always add relevant content to your knowledge base, then query it for answers.""",
+            system_prompt="""You are an advanced information specialist with a sophisticated RAG system.
+Your knowledge base uses hybrid reranking and grows dynamically with each web search and document addition.
+
+IMPORTANT INSTRUCTIONS FOR YOUR REASONING PROCESS:
+1. Pay careful attention to ALL details in the user's question.
+2. Think step by step about what is being asked, breaking down the requirements.
+3. Identify specific qualifiers (e.g., "studio albums" vs just "albums", "between 2000-2010" vs "all time").
+4. If searching for information, include ALL important details in your search query.
+5. Double-check that your final answer addresses the EXACT question asked, not a simplified version.
+
+For example:
+- If asked "How many studio albums did Taylor Swift release between 2006-2010?", don't just search for 
+  "Taylor Swift albums" - include "studio albums" AND the specific date range in your search.
+- If asked about "Fortune 500 companies headquartered in California", don't just search for 
+  "Fortune 500 companies" - include the location qualifier.
+
+Always add relevant content to your knowledge base, then query it for answers.""",
             tools=[
                 enhanced_web_search_tool,
                 self.dynamic_qe_manager.get_tool(),
@@ -598,8 +739,9 @@ class EnhancedGAIAAgent:
             ],
             llm=proj_llm,
             max_steps=8,
-            verbose=True)
-        
+            verbose=True
+        )
+
         self.code_agent = ReActAgent(
             name="code_agent",
             description="Handles Python code for calculations and data processing",
@@ -607,28 +749,30 @@ class EnhancedGAIAAgent:
             tools=[code_execution_tool],
             llm=code_llm,
             max_steps=6,
-            verbose=True)
-        
+            verbose=True
+        )
+
         # Fixed indentation: coordinator initialization inside __init__
         self.coordinator = AgentWorkflow(
             agents=[self.external_knowledge_agent, self.code_agent],
             root_agent="external_knowledge_agent"
         )
-    
+
     def download_gaia_file(self, task_id: str, api_url: str = "https://agents-course-unit4-scoring.hf.space") -> str:
         """Download file associated with task_id"""
         try:
             response = requests.get(f"{api_url}/files/{task_id}", timeout=30)
             response.raise_for_status()
-            
             filename = f"task_{task_id}_file"
+
             with open(filename, 'wb') as f:
                 f.write(response.content)
+
             return filename
         except Exception as e:
             print(f"Failed to download file for task {task_id}: {e}")
             return None
-    
+
     def add_documents_to_knowledge_base(self, file_path: str):
         """Add downloaded GAIA documents to the dynamic knowledge base"""
         try:
@@ -636,25 +780,26 @@ class EnhancedGAIAAgent:
             if documents:
                 self.dynamic_qe_manager.add_documents(documents)
                 print(f"Added {len(documents)} documents from {file_path} to dynamic knowledge base")
-                
+
                 # Update the agent's tools with the refreshed query engine
                 self.external_knowledge_agent.tools = [
                     enhanced_web_search_tool,
                     self.dynamic_qe_manager.get_tool(),  # Get the updated tool
                     code_execution_tool
                 ]
+
                 return True
         except Exception as e:
             print(f"Failed to add documents from {file_path}: {e}")
             return False
-    
+
     async def solve_gaia_question(self, question_data: Dict[str, Any]) -> str:
         """
         Solve GAIA question with dynamic knowledge base integration
         """
         question = question_data.get("Question", "")
         task_id = question_data.get("task_id", "")
-        
+
         # Try to download and add file to knowledge base if task_id provided
         file_path = None
         if task_id:
@@ -666,44 +811,54 @@ class EnhancedGAIAAgent:
                     print(f"Successfully integrated GAIA file into dynamic knowledge base")
             except Exception as e:
                 print(f"Failed to download/process file for task {task_id}: {e}")
-        
-        # Enhanced context prompt with dynamic knowledge base awareness
+
+        # Enhanced context prompt with dynamic knowledge base awareness and step-by-step reasoning
         context_prompt = f"""
 GAIA Task ID: {task_id}
 Question: {question}
 {f'File processed and added to knowledge base: {file_path}' if file_path else 'No additional files'}
 
-You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
-        
+You are a general AI assistant. I will ask you a question. 
+
+IMPORTANT INSTRUCTIONS:
+1. Think through this STEP BY STEP, carefully analyzing all aspects of the question.
+2. Pay special attention to specific qualifiers like dates, types, categories, or locations.
+3. Make sure your searches include ALL important details from the question.
+4. Report your thoughts and reasoning process clearly.
+5. Finish your answer with: FINAL ANSWER: [YOUR FINAL ANSWER]
+
+YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. 
+If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. 
+If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. 
+If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
+
         try:
             ctx = Context(self.coordinator)
             print("=== AGENT REASONING STEPS ===")
             print(f"Dynamic knowledge base contains {len(self.dynamic_qe_manager.documents)} documents")
-            
+
             handler = self.coordinator.run(ctx=ctx, user_msg=context_prompt)
-            
             full_response = ""
+
             async for event in handler.stream_events():
                 if isinstance(event, AgentStream):
                     print(event.delta, end="", flush=True)
                     full_response += event.delta
-            
+
             final_response = await handler
             print("\n=== END REASONING ===")
-            
+
             # Extract the final formatted answer
-            final_answer = str(final_response).strip()
-            
+            final_answer = final_answer_tool(str(final_response), question)
             print(f"Final GAIA formatted answer: {final_answer}")
             print(f"Knowledge base now contains {len(self.dynamic_qe_manager.documents)} documents")
-            
+
             return final_answer
-            
         except Exception as e:
             error_msg = f"Error processing question: {str(e)}"
             print(error_msg)
             return error_msg
-    
+
     def get_knowledge_base_stats(self):
         """Get statistics about the current knowledge base"""
         return {
@@ -711,14 +866,14 @@ You are a general AI assistant. I will ask you a question. Report your thoughts,
             "document_sources": [doc.metadata.get("source", "Unknown") for doc in self.dynamic_qe_manager.documents]
         }
 
-import asyncio
-
 async def main():
     agent = EnhancedGAIAAgent()
+
     question_data = {
         "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.",
         "task_id": ""
     }
+
     print(question_data)
     answer = await agent.solve_gaia_question(question_data)
     print(f"Answer: {answer}")
