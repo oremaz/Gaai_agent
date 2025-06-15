@@ -26,7 +26,6 @@ from llama_index.core.schema import ImageNode, TextNode
 # LlamaIndex specialized imports
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
-from llama_index.multi_modal_llms.huggingface import HuggingFaceMultiModal
 from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
 from llama_index.readers.json import JSONReader
 from llama_index.readers.web import BeautifulSoupWebReader
@@ -119,10 +118,9 @@ def initialize_models(use_api_mode=False):
         print("Initializing models in non-API mode with local models...")
 
         try : 
-            # Fallback to regular HuggingFace LLM
-            proj_llm = HuggingFaceMultiModal(
-                model_name="mistralai/Pixtral-12B-2409",
-                tokenizer_name="mistralai/Pixtral-12B-2409",
+            proj_llm = HuggingFaceLLM(
+                model_name="google/gemma-3-12b-it",
+                tokenizer_name="google/gemma-3-12b-it",
                 device_map="auto",
                 max_new_tokens=16000,
                 model_kwargs={"torch_dtype": "auto"},
