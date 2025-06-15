@@ -518,8 +518,6 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
             doc.metadata["source"] = url
             doc.metadata["type"] = "web_text"
 
-        print(documents)
-
         return documents
     except Exception as e:
         # Handle any exceptions that occur during content extraction
@@ -880,11 +878,11 @@ If you are asked for a comma separated list, apply the above rules depending of 
             print("\n=== END REASONING ===")
 
             # Extract the final formatted answer
-            final_answer = final_answer_tool(str(final_response), question)
-            print(f"Final GAIA formatted answer: {final_answer}")
-            print(f"Knowledge base now contains {len(self.dynamic_qe_manager.documents)} documents")
+            #final_answer = final_answer_tool(str(final_response), question)
+            #print(f"Final GAIA formatted answer: {final_answer}")
+            #print(f"Knowledge base now contains {len(self.dynamic_qe_manager.documents)} documents")
 
-            return final_answer
+            return final_response
         except Exception as e:
             error_msg = f"Error processing question: {str(e)}"
             print(error_msg)
