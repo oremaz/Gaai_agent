@@ -197,8 +197,9 @@ def initialize_models(use_api_mode=False):
 
 
             embed_model = HuggingFaceEmbedding(
-                model_name="nomic-ai/nomic-embed-multimodal-3b",
-                device="cuda:1")
+                model_name="llamaindex/vdr-2b-multi-v1",
+                device="cuda:1", 
+            trust_remote_code = True)
             proj_llm = QwenVL7BCustomLLM()
     
             # Code LLM
