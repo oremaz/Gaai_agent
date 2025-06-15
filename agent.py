@@ -941,7 +941,7 @@ If you are asked for a comma separated list, apply the above rules depending of 
         }
 
 async def main():
-    agent = EnhancedGAIAAgent()
+    #agent = EnhancedGAIAAgent()
 
     question_data = {
         "Question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !",
