@@ -371,17 +371,9 @@ class DynamicQueryEngineManager:
 
         # Process text documents with UnstructuredElementNodeParser
         if text_documents:
-            try:
-                initial_nodes = element_parser.get_nodes_from_documents(text_documents)
-                final_nodes = splitter.get_nodes_from_documents(initial_nodes)
-                nodes.extend(final_nodes)
-            except Exception as e:
-                print(f"Error parsing text documents with UnstructuredElementNodeParser: {e}")
-                # Fallback to simple parsing if UnstructuredElementNodeParser fails
-                from llama_index.core.node_parser import SimpleNodeParser
-                simple_parser = SimpleNodeParser.from_defaults(chunk_size=1024, chunk_overlap=200)
-                text_nodes = simple_parser.get_nodes_from_documents(text_documents)
-                nodes.extend(text_nodes)
+            initial_nodes = element_parser.get_nodes_from_documents(text_documents)
+            final_nodes = splitter.get_nodes_from_documents(initial_nodes)
+            nodes.extend(final_nodes)
 
         # Process image documents as ImageNodes
         if image_documents:
