@@ -79,7 +79,7 @@ torchvision
 torchaudio
 unstructured
 lxml
-optimum[onnxruntime]
+optimum-intel[openvino]
 
 # NEW: Enhanced document parsing
 python-multipart>=0.0.5
