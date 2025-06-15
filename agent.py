@@ -44,6 +44,7 @@ from llama_index.readers.file import (
     PandasExcelReader,
     VideoAudioReader  # Adding VideoAudioReader for handling audio/video without API
 )
+from pydantic import Field
 
 # Optional API-based imports (conditionally loaded)
 try:
