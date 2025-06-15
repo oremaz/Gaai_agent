@@ -22,12 +22,23 @@ llama-index-readers-json>=0.1.0
 llama-index-readers-assemblyai>=0.1.0
 llama-index-postprocessor-colpali-rerank
 
+# NEW: API Mode Dependencies (Optional)
+llama-index-llms-gemini>=0.1.0
+llama-index-embeddings-gemini>=0.1.0
+llama-index-llms-vllm>=0.1.0
+llama-cloud-services>=0.1.0
+
 # Document processing
 pypdf>=3.0.0
 python-docx>=0.8.11
 openpyxl>=3.1.0
 pandas>=2.0.0
 Pillow>=9.0.0
+
+# NEW: Audio/Video processing (for VideoAudioReader)
+pydub>=0.25.1
+speechrecognition>=3.10.0
+ffmpeg-python>=0.2.0
 
 # Web scraping and APIs
 requests>=2.28.0
@@ -64,3 +75,7 @@ torchvision
 torchaudio
 unstructured
 lxml
+
+# NEW: Enhanced document parsing
+python-multipart>=0.0.5
+poppler-utils
