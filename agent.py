@@ -200,14 +200,14 @@ def initialize_models(use_api_mode=False):
 
             embed_model = HuggingFaceEmbedding(
                 model_name="llamaindex/vdr-2b-multi-v1",
-                device="cuda:1", 
+                device="auto", 
             trust_remote_code = True)
     
             # Code LLM
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
                 tokenizer_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
-                device_map="cuda:0",
+                device_map="auto",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
