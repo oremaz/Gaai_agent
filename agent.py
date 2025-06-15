@@ -200,64 +200,51 @@ def initialize_models(use_api_mode=False):
 
             from typing import Any, List, Optional
             from llama_index.core.embeddings import BaseEmbedding
-            import torch
-            from FlagEmbedding.visual.modeling import Visualized_BGE
+            from sentence_transformers import SentenceTransformer
+            from PIL import Image
             
-            class BAAIVisualizedAdvanced(BaseEmbedding):
+            class MultimodalCLIPEmbedding(BaseEmbedding):
                 """
-                Advanced implementation using FlagEmbedding's Visualized_BGE.
+                Custom embedding class using CLIP for multimodal capabilities.
                 """
                 
-                def __init__(self, 
-                             model_name_bge: str = "BAAI/bge-base-en-v1.5",
-                             model_weight_path: str = "path/to/Visualized_base_en_v1.5.pth",
-                             **kwargs: Any) -> None:
+                def __init__(self, model_name: str = "clip-ViT-B-32", **kwargs: Any) -> None:
                     super().__init__(**kwargs)
-                    # Initialize the Visualized BGE model
-                    self._model = Visualized_BGE(
-                        model_name_bge=model_name_bge,
-                        model_weight=model_weight_path
-                    )
-                    self._model.eval()
+                    self._model = SentenceTransformer(model_name)
                     
                 @classmethod
                 def class_name(cls) -> str:
-                    return "baai_visualized_advanced"
+                    return "multimodal_clip"
                 
                 def _get_query_embedding(self, query: str, image_path: Optional[str] = None) -> List[float]:
-                    """Generate embedding for query with optional image."""
-                    with torch.no_grad():
-                        if image_path:
-                            # Encode both text and image
-                            embedding = self._model.encode(image=image_path, text=query)
-                        else:
-                            # Text-only encoding
-                            embedding = self._model.encode(text=query)
-                        return embedding.cpu().numpy().tolist()
+                    if image_path:
+                        image = Image.open(image_path)
+                        embedding = self._model.encode(image)
+                        return embedding.tolist()
+                    else:
+                        embedding = self._model.encode(query)
+                        return embedding.tolist()
                 
                 def _get_text_embedding(self, text: str, image_path: Optional[str] = None) -> List[float]:
-                    """Generate embedding for text with optional image."""
-                    with torch.no_grad():
-                        if image_path:
-                            # Image-only encoding
-                            embedding = self._model.encode(image=image_path)
-                        else:
-                            # Text-only encoding
-                            embedding = self._model.encode(text=text)
-                        return embedding.cpu().numpy().tolist()
+                    if image_path:
+                        image = Image.open(image_path)
+                        embedding = self._model.encode(image)
+                        return embedding.tolist()
+                    else:
+                        embedding = self._model.encode(text)
+                        return embedding.tolist()
                 
                 def _get_text_embeddings(self, texts: List[str], image_paths: Optional[List[str]] = None) -> List[List[float]]:
-                    """Batch embedding generation."""
                     embeddings = []
                     image_paths = image_paths or [None] * len(texts)
                     
-                    with torch.no_grad():
-                        for text, img_path in zip(texts, image_paths):
-                            if img_path:
-                                emb = self._model.encode(image=img_path, text=text)
-                            else:
-                                emb = self._model.encode(text=text)
-                            embeddings.append(emb.cpu().numpy().tolist())
+                    for text, img_path in zip(texts, image_paths):
+                        if img_path:
+                            image = Image.open(img_path)
+                            emb = self._model.encode(image)
+                        else:
+                            emb = self._model.encode(text)
+                        embeddings.append(emb.tolist())
                     
                     return embeddings
                 
@@ -268,7 +255,7 @@ def initialize_models(use_api_mode=False):
                     return self._get_text_embedding(text, image_path)
 
 
-            embed_model = BAAIVisualizedEmbedding()
+            embed_model = MultimodalCLIPEmbedding()
             # Code LLM
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
