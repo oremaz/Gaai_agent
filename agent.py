@@ -26,6 +26,7 @@ from llama_index.core.schema import ImageNode, TextNode
 # LlamaIndex specialized imports
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.huggingface import HuggingFaceLLM
+from llama_index.multi_modal_llms.huggingface import HuggingFaceMultiModal
 from llama_index.readers.assemblyai import AssemblyAIAudioTranscriptReader
 from llama_index.readers.json import JSONReader
 from llama_index.readers.web import BeautifulSoupWebReader
