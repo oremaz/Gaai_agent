@@ -14,7 +14,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # LlamaIndex core imports
 from llama_index.core import VectorStoreIndex, Document, Settings
 from llama_index.core.agent.workflow import FunctionAgent, ReActAgent, AgentStream
-from llama_index.core.node_parser import SentenceWindowNodeParser, HierarchicalNodeParser, UnstructuredElementNodeParser
+from llama_index.core.node_parser import UnstructuredElementNodeParser, SentenceSplitter
 from llama_index.core.postprocessor import SentenceTransformerRerank
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.retrievers import VectorIndexRetriever
@@ -366,13 +366,15 @@ class DynamicQueryEngineManager:
 
         # Use UnstructuredElementNodeParser for text content with multimodal awareness
         element_parser = UnstructuredElementNodeParser()
+        splitter = SentenceSplitter(chunk_size=1024, chunk_overlap=200)
         nodes = []
 
         # Process text documents with UnstructuredElementNodeParser
         if text_documents:
             try:
-                text_nodes = element_parser.get_nodes_from_documents(text_documents)
-                nodes.extend(text_nodes)
+                initial_nodes = element_parser.get_nodes_from_documents(text_documents)
+                final_nodes = splitter.get_nodes_from_documents(initial_nodes)
+                nodes.extend(final_nodes)
             except Exception as e:
                 print(f"Error parsing text documents with UnstructuredElementNodeParser: {e}")
                 # Fallback to simple parsing if UnstructuredElementNodeParser fails
