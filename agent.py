@@ -209,11 +209,13 @@ def initialize_models(use_api_mode=False):
             # Embedding model
             embed_model = HuggingFaceEmbedding(
                 model_name="llamaindex/vdr-2b-multi-v1",
-                device="cuda",
+                device="cpu",
                 trust_remote_code=True,
-                model_kwargs={"torch_dtype": "auto"},
+                model_kwargs={
+                    "torch_dtype": "auto"
+                }
             )
-    
+
             return proj_llm, code_llm, embed_model
         except Exception as e:
             print(f"Error initializing models: {e}")
@@ -903,7 +905,6 @@ async def main():
     }
 
     print(question_data)
-    dynamic_qe_manager = DynamicQueryEngineManager()
     content = enhanced_web_search_and_update("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !")
     print(content)
     #answer = await agent.solve_gaia_question(question_data)   
