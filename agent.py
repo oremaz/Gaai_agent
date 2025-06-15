@@ -35,6 +35,7 @@ from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 from llama_index.core.agent.workflow import AgentWorkflow
 from llama_index.llms.vllm import Vllm
 
+
 # Import all required official LlamaIndex Readers
 from llama_index.readers.file import (
     PDFReader,
@@ -119,21 +120,16 @@ def initialize_models(use_api_mode=False):
         print("Initializing models in non-API mode with local models...")
 
         try : 
-            proj_llm = HuggingFaceLLM(
-                model_name="google/gemma-3-12b-it",
-                tokenizer_name="google/gemma-3-12b-it",
-                device_map="auto",
-                max_new_tokens=16000,
-                model_kwargs={
-                    "torch_dtype": "auto",
-                    "max_memory": max_mem,  # Add this line
-                },
-                generate_kwargs={
-                    "temperature": 0.6,
-                    "top_p": 0.95,
-                    "top_k": 20
-                }
-            )
+            proj_llm = HuggingFaceMultiModal.from_model_name(
+                        "Qwen/Qwen2.5-VL-7B-Instruct",
+                        temperature=0.7,
+                        top_p=0.9,
+                        top_k=40,
+                        max_new_tokens=5120,
+                        device_map="auto",
+                        model_kwargs={"torch_dtype": "auto"}
+                    )
+
     
             # Code LLM
             code_llm = HuggingFaceLLM(
