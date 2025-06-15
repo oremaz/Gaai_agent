@@ -949,7 +949,6 @@ async def main():
     }
 
     print(question_data)
-    proj_llm, code_llm, embed_model = initialize_models(use_api_mode=False)
 
     # Test with image
     file_path = "test_image.jpg"
