@@ -77,7 +77,6 @@ def get_max_memory_config(max_memory_per_gpu):
         return max_memory
     return None
 
-max_mem = get_max_memory_config("10GIB")
 # Initialize models based on API availability
 def initialize_models(use_api_mode=False):
     """Initialize LLM, Code LLM, and Embed models based on mode"""
@@ -131,8 +130,9 @@ def initialize_models(use_api_mode=False):
                 context_window: int = 32768
                 num_output: int = 256
                 model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct"
-            
-                def __init__(self, device: str = "cuda"):
+                device: str = Field(default="cuda")
+
+                def __init__(self):
                     self.device = device
                     self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                         self.model_name, torch_dtype=torch.bfloat16, device_map="auto"
