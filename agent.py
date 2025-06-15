@@ -138,7 +138,7 @@ def initialize_models(use_api_mode=False):
                 def __init__(self, **kwargs):
                     super().__init__(**kwargs)
                     self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_name, torch_dtype=torch.bfloat16, device_map='balanced'
+                        self.model_name, torch_dtype=torch.bfloat16, device_map='auto'
                     )
                     self._processor = AutoProcessor.from_pretrained(self.model_name)
             
