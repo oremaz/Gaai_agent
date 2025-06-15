@@ -138,7 +138,7 @@ def initialize_models(use_api_mode=False):
                 def __init__(self, **kwargs):
                     super().__init__(**kwargs)
                     self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_name, torch_dtype=torch.bfloat16, device_map="auto"
+                        self.model_name, torch_dtype=torch.bfloat16, device_map=0
                     )
                     self._processor = AutoProcessor.from_pretrained(self.model_name)
             
@@ -201,17 +201,16 @@ def initialize_models(use_api_mode=False):
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
                 tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-                device_map="auto",
+                device_map="cuda:1",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
     
             # Embedding model
             embed_model = HuggingFaceEmbedding(
-                model_name="llamaindex/vdr-2b-multi-v1",
-                device="cpu",
-                trust_remote_code=True,
-                backend="openvino")
+                model_name="nomic-ai/colnomic-embed-multimodal-3b",
+                device="cuda:1",
+                trust_remote_code=True)
 
             return proj_llm, code_llm, embed_model
         except Exception as e:
