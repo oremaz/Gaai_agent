@@ -209,6 +209,7 @@ def initialize_models(use_api_mode=False):
             # Embedding model
             embed_model = HuggingFaceEmbedding(
                 model_name="llamaindex/vdr-2b-multi-v1",
+                device="cpu",
                 trust_remote_code=True,
                 backend="onnx",
                 model_kwargs={"provider": "CPUExecutionProvider"}
