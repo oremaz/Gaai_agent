@@ -906,9 +906,11 @@ async def main():
     }
 
     print(question_data)
-    print(search_and_extract_content_from_url("Mercedes Sosa studio albums 2000-2009"))
-    answer = await agent.solve_gaia_question(question_data)
-    print(f"Answer: {answer}")
+    dynamic_qe_manager = DynamicQueryEngineManager()
+    content = enhanced_web_search_and_update("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !")
+    print(content)
+    #answer = await agent.solve_gaia_question(question_data)   
+    #print(f"Answer: {answer}")
 
 if __name__ == '__main__':
     asyncio.run(main())
