@@ -198,16 +198,82 @@ def initialize_models(use_api_mode=False):
 
             proj_llm = QwenVL7BCustomLLM()
 
-            embed_model = HuggingFaceEmbedding(
-                model_name="llamaindex/vdr-2b-multi-v1",
-                device="cuda:0", 
-            trust_remote_code = True)
-    
+            from typing import Any, List, Optional
+            from llama_index.core.embeddings import BaseEmbedding
+            import torch
+            from FlagEmbedding.visual.modeling import Visualized_BGE
+            
+            class BAAIVisualizedAdvanced(BaseEmbedding):
+                """
+                Advanced implementation using FlagEmbedding's Visualized_BGE.
+                """
+                
+                def __init__(self, 
+                             model_name_bge: str = "BAAI/bge-base-en-v1.5",
+                             model_weight_path: str = "path/to/Visualized_base_en_v1.5.pth",
+                             **kwargs: Any) -> None:
+                    super().__init__(**kwargs)
+                    # Initialize the Visualized BGE model
+                    self._model = Visualized_BGE(
+                        model_name_bge=model_name_bge,
+                        model_weight=model_weight_path
+                    )
+                    self._model.eval()
+                    
+                @classmethod
+                def class_name(cls) -> str:
+                    return "baai_visualized_advanced"
+                
+                def _get_query_embedding(self, query: str, image_path: Optional[str] = None) -> List[float]:
+                    """Generate embedding for query with optional image."""
+                    with torch.no_grad():
+                        if image_path:
+                            # Encode both text and image
+                            embedding = self._model.encode(image=image_path, text=query)
+                        else:
+                            # Text-only encoding
+                            embedding = self._model.encode(text=query)
+                        return embedding.cpu().numpy().tolist()
+                
+                def _get_text_embedding(self, text: str, image_path: Optional[str] = None) -> List[float]:
+                    """Generate embedding for text with optional image."""
+                    with torch.no_grad():
+                        if image_path:
+                            # Image-only encoding
+                            embedding = self._model.encode(image=image_path)
+                        else:
+                            # Text-only encoding
+                            embedding = self._model.encode(text=text)
+                        return embedding.cpu().numpy().tolist()
+                
+                def _get_text_embeddings(self, texts: List[str], image_paths: Optional[List[str]] = None) -> List[List[float]]:
+                    """Batch embedding generation."""
+                    embeddings = []
+                    image_paths = image_paths or [None] * len(texts)
+                    
+                    with torch.no_grad():
+                        for text, img_path in zip(texts, image_paths):
+                            if img_path:
+                                emb = self._model.encode(image=img_path, text=text)
+                            else:
+                                emb = self._model.encode(text=text)
+                            embeddings.append(emb.cpu().numpy().tolist())
+                    
+                    return embeddings
+                
+                async def _aget_query_embedding(self, query: str, image_path: Optional[str] = None) -> List[float]:
+                    return self._get_query_embedding(query, image_path)
+                
+                async def _aget_text_embedding(self, text: str, image_path: Optional[str] = None) -> List[float]:
+                    return self._get_text_embedding(text, image_path)
+
+
+            embed_model = BAAIVisualizedEmbedding()
             # Code LLM
             code_llm = HuggingFaceLLM(
-                model_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
-                tokenizer_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
-                device_map="cuda:1",
+                model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+                tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+                device_map="auto",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
@@ -896,8 +962,31 @@ async def main():
     }
 
     print(question_data)
-    content = enhanced_web_search_and_update("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? List them !")
-    print(content)
+    proj_llm, code_llm, embed_model = initialize_models(use_api_mode=False)
+
+    # Test with image
+    file_path = "test_image.jpg"
+    
+    # Test proj_llm (multimodal LLM)
+    response = proj_llm.complete(
+        prompt="Describe what you see in this image.",
+        image_paths=[file_path]
+    )
+    print(f"LLM Response: {response.text}")
+    
+    # Test embed_model with image
+    image_embedding = embed_model._get_text_embedding("", image_path=file_path)
+    print(f"Image embedding dimension: {len(image_embedding)}")
+    print(f"First 5 elements: {image_embedding[:5]}")
+    
+    # Test embed_model with text
+    text_embedding = embed_model._get_text_embedding("A red sports car")
+    print(f"Text embedding dimension: {len(text_embedding)}")
+    
+    # Test multimodal embedding (text + image)
+    multimodal_embedding = embed_model._get_query_embedding("red car", image_path=file_path)
+    print(f"Multimodal embedding dimension: {len(multimodal_embedding)}")
+
     #answer = await agent.solve_gaia_question(question_data)   
     #print(f"Answer: {answer}")
 
