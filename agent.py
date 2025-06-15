@@ -131,10 +131,9 @@ def initialize_models(use_api_mode=False):
                 context_window: int = 32768
                 num_output: int = 256
                 model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct"
-                device: str = Field(default="cuda")
 
                 def __init__(self):
-                    self.device = device
+                    self.device = "cuda"
                     self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                         self.model_name, torch_dtype=torch.bfloat16, device_map="auto"
                     )
