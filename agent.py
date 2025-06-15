@@ -195,6 +195,10 @@ def initialize_models(use_api_mode=False):
                     for token in response.text:
                         yield CompletionResponse(text=token, delta=token)
 
+
+            embed_model = HuggingFaceEmbedding(
+                model_name="nomic-ai/nomic-embed-multimodal-3b",
+                device="cuda:1")
             proj_llm = QwenVL7BCustomLLM()
     
             # Code LLM
@@ -205,11 +209,6 @@ def initialize_models(use_api_mode=False):
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
-    
-            # Embedding model
-            embed_model = HuggingFaceEmbedding(
-                model_name="nomic-ai/colnomic-embed-multimodal-3b",
-                device="cuda:1")
 
             return proj_llm, code_llm, embed_model
         except Exception as e:
