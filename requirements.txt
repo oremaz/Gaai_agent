@@ -14,13 +14,13 @@ llama-index-llms-huggingface>=0.2.0
 llama-index-embeddings-huggingface>=0.2.0
 llama-index-callbacks-wandb>=0.1.0
 llama-index-tools-arxiv>=0.1.0
-llama-index-tools-duckduckgo>=0.1.0
 llama-index-readers-file>=0.1.0
 llama-index-readers-web>=0.1.0
 llama-index-readers-youtube-transcript>=0.1.0
 llama-index-readers-json>=0.1.0
 llama-index-readers-assemblyai>=0.1.0
 llama-index-postprocessor-colpali-rerank
+duckduckgo_search
 
 # NEW: API Mode Dependencies (Optional)
 llama-index-llms-gemini>=0.1.0
