@@ -904,6 +904,7 @@ async def main():
     }
 
     print(question_data)
+    print(search_and_extract_content_from_url("Mercedes Sosa studio albums 2000-2009"))
     answer = await agent.solve_gaia_question(question_data)
     print(f"Answer: {answer}")
 
