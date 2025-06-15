@@ -196,16 +196,17 @@ def initialize_models(use_api_mode=False):
                         yield CompletionResponse(text=token, delta=token)
 
 
+            proj_llm = QwenVL7BCustomLLM()
+
             embed_model = HuggingFaceEmbedding(
                 model_name="llamaindex/vdr-2b-multi-v1",
                 device="cuda:1", 
             trust_remote_code = True)
-            proj_llm = QwenVL7BCustomLLM()
     
             # Code LLM
             code_llm = HuggingFaceLLM(
-                model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-                tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
+                model_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
+                tokenizer_name="Qwen/Qwen2.5-Coder-1.5B-Instruct",
                 device_map="cuda:0",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
