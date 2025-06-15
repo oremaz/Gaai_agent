@@ -502,6 +502,7 @@ def search_and_extract_content_from_url(query: str) -> List[Document]:
     # Get URL from search
     results = search_ddg(query)
     url = results["AbstractURL"]
+    print(url)
 
     documents = []
 
