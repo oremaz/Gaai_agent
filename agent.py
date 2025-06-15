@@ -211,9 +211,7 @@ def initialize_models(use_api_mode=False):
                 model_name="llamaindex/vdr-2b-multi-v1",
                 device="cpu",
                 trust_remote_code=True,
-                backend="onnx",
-                model_kwargs={"provider": "CPUExecutionProvider"}
-            )
+                backend="openvino")
 
             return proj_llm, code_llm, embed_model
         except Exception as e:
