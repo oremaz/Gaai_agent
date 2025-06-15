@@ -138,7 +138,7 @@ def initialize_models(use_api_mode=False):
                 def __init__(self, **kwargs):
                     super().__init__(**kwargs)
                     self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_name, torch_dtype=torch.bfloat16, device_map=0
+                        self.model_name, torch_dtype=torch.bfloat16, device_map='balanced'
                     )
                     self._processor = AutoProcessor.from_pretrained(self.model_name)
             
@@ -201,7 +201,7 @@ def initialize_models(use_api_mode=False):
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
                 tokenizer_name="Qwen/Qwen2.5-Coder-3B-Instruct",
-                device_map="cuda:1",
+                device_map="cuda:0",
                 model_kwargs={"torch_dtype": "auto"},
                 generate_kwargs={"do_sample": False}
             )
