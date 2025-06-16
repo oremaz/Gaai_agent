@@ -14,8 +14,7 @@ import helium
 from PIL import Image
 from io import BytesIO
 from time import sleep
-from smolagents import DuckDuckGoSearchTool
-
+from smolagents import PythonInterpreterTool, SpeechToTextTool
 
 class BM25RetrieverTool(Tool):
     """
@@ -227,9 +226,9 @@ Your final answer should be as few words as possible, a number, or a comma-separ
         ]
 
         self.agent = CodeAgent(
-            tools=base_tools,
+            tools=base_tools + [PythonInterpreterTool(), SpeechToTextTool()],
             model=self.model,
-            add_base_tools=True,  # Adds web search, python execution, etc.
+            add_base_tools=False,  # Adds web search, python execution, etc.
             planning_interval=2,  # Plan every 2 steps
             additional_authorized_imports=["helium", "requests", "BeautifulSoup", "json"],
             step_callbacks=[save_screenshot_callback] if self.driver else [],
@@ -237,9 +236,6 @@ Your final answer should be as few words as possible, a number, or a comma-separ
             description=self.system_prompt,
             verbosity_level=2,
         )
-        self.agent.tools = [tool for tool in self.agent.tools 
-                   if not isinstance(tool, DuckDuckGoSearchTool)]
-        print(self.agent.tools)
 
     def initialize_browser(self):
         """Initialize browser for web automation tasks"""
