@@ -120,3 +120,14 @@ tiktoken>=0.4.0
 
 # System utilities
 psutil>=5.9.0
+
+# Langfuse
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+
+# Langfuse integration
+langfuse
+
+# OpenInference instrumentation for smolagents
+openinference-instrumentation-smolagents
