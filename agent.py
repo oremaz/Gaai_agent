@@ -10,6 +10,7 @@ import asyncio
 # Third-party imports
 import requests
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from custom_models import QwenVL7BCustomLLM, BaaiMultimodalEmbedding
 
 # LlamaIndex core imports
 from llama_index.core import VectorStoreIndex, Document, Settings
@@ -120,139 +121,7 @@ def initialize_models(use_api_mode=False):
         print("Initializing models in non-API mode with local models...")
 
         try : 
-            from typing import Optional, List, Any
-            from pydantic import Field, PrivateAttr
-            from llama_index.core.llms import CustomLLM, CompletionResponse, CompletionResponseGen, LLMMetadata
-            from llama_index.core.llms.callbacks import llm_completion_callback
-            from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
-            from qwen_vl_utils import process_vision_info
-            import torch
-            
-            class QwenVL7BCustomLLM(CustomLLM):
-                model_name: str = Field(default="Qwen/Qwen2.5-VL-7B-Instruct")
-                context_window: int = Field(default=32768)
-                num_output: int = Field(default=256)
-                _model = PrivateAttr()
-                _processor = PrivateAttr()
-            
-                def __init__(self, **kwargs):
-                    super().__init__(**kwargs)
-                    self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                        self.model_name, torch_dtype=torch.bfloat16, device_map='balanced'
-                    )
-                    self._processor = AutoProcessor.from_pretrained(self.model_name)
-            
-                @property
-                def metadata(self) -> LLMMetadata:
-                    return LLMMetadata(
-                        context_window=self.context_window,
-                        num_output=self.num_output,
-                        model_name=self.model_name,
-                    )
-            
-                @llm_completion_callback()
-                def complete(
-                    self,
-                    prompt: str,
-                    image_paths: Optional[List[str]] = None,
-                    **kwargs: Any
-                ) -> CompletionResponse:
-                    # Prepare multimodal input
-                    messages = [{"role": "user", "content": []}]
-                    if image_paths:
-                        for path in image_paths:
-                            messages[0]["content"].append({"type": "image", "image": path})
-                    messages[0]["content"].append({"type": "text", "text": prompt})
-            
-                    # Tokenize and process
-                    text = self._processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-                    image_inputs, video_inputs = process_vision_info(messages)
-                    inputs = self._processor(
-                        text=[text],
-                        images=image_inputs,
-                        videos=video_inputs,
-                        padding=True,
-                        return_tensors="pt",
-                    )
-                    inputs = inputs.to(self._model.device)
-            
-                    # Generate output
-                    generated_ids = self._model.generate(**inputs, max_new_tokens=self.num_output)
-                    generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
-                    output_text = self._processor.batch_decode(
-                        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-                    )[0]
-                    return CompletionResponse(text=output_text)
-            
-                @llm_completion_callback()
-                def stream_complete(
-                    self,
-                    prompt: str,
-                    image_paths: Optional[List[str]] = None,
-                    **kwargs: Any
-                ) -> CompletionResponseGen:
-                    response = self.complete(prompt, image_paths)
-                    for token in response.text:
-                        yield CompletionResponse(text=token, delta=token)
-
-
             proj_llm = QwenVL7BCustomLLM()
-
-            from typing import Any, List, Optional
-            from llama_index.core.embeddings import BaseEmbedding
-            from sentence_transformers import SentenceTransformer
-            from PIL import Image
-            
-            class MultimodalCLIPEmbedding(BaseEmbedding):
-                """
-                Custom embedding class using CLIP for multimodal capabilities.
-                """
-                
-                def __init__(self, model_name: str = "clip-ViT-B-32", **kwargs: Any) -> None:
-                    super().__init__(**kwargs)
-                    self._model = SentenceTransformer(model_name)
-                    
-                @classmethod
-                def class_name(cls) -> str:
-                    return "multimodal_clip"
-                
-                def _get_query_embedding(self, query: str, image_path: Optional[str] = None) -> List[float]:
-                    if image_path:
-                        image = Image.open(image_path)
-                        embedding = self._model.encode(image)
-                        return embedding.tolist()
-                    else:
-                        embedding = self._model.encode(query)
-                        return embedding.tolist()
-                
-                def _get_text_embedding(self, text: str, image_path: Optional[str] = None) -> List[float]:
-                    if image_path:
-                        image = Image.open(image_path)
-                        embedding = self._model.encode(image)
-                        return embedding.tolist()
-                    else:
-                        embedding = self._model.encode(text)
-                        return embedding.tolist()
-                
-                def _get_text_embeddings(self, texts: List[str], image_paths: Optional[List[str]] = None) -> List[List[float]]:
-                    embeddings = []
-                    image_paths = image_paths or [None] * len(texts)
-                    
-                    for text, img_path in zip(texts, image_paths):
-                        if img_path:
-                            image = Image.open(img_path)
-                            emb = self._model.encode(image)
-                        else:
-                            emb = self._model.encode(text)
-                        embeddings.append(emb.tolist())
-                    
-                    return embeddings
-                
-                async def _aget_query_embedding(self, query: str, image_path: Optional[str] = None) -> List[float]:
-                    return self._get_query_embedding(query, image_path)
-                
-                async def _aget_text_embedding(self, text: str, image_path: Optional[str] = None) -> List[float]:
-                    return self._get_text_embedding(text, image_path)
 
 
             embed_model = MultimodalCLIPEmbedding()

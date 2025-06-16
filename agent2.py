@@ -5,16 +5,8 @@ from typing import Dict, Any, List
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
-from smolagents import CodeAgent, OpenAIServerModel, tool, Tool
-from smolagents.vision_web_browser import initialize_driver, save_screenshot, helium_instructions
-from smolagents.agents import ActionStep
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-import helium
-from PIL import Image
-from io import BytesIO
-from time import sleep
+from smolagents import CodeAgent, OpenAIServerModel, Tool
+from smolagents import PythonInterpreterTool, SpeechToTextTool
 
 # Langfuse observability imports
 from opentelemetry.sdk.trace import TracerProvider
@@ -22,9 +14,100 @@ from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry import trace
-from opentelemetry.trace import format_trace_id
 from langfuse import Langfuse
+from smolagents import SpeechToTextTool, PythonInterpreterTool
 
+
+import requests
+from markdownify import markdownify
+from requests.exceptions import RequestException
+from smolagents import tool
+import re
+
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
+class WebSearchTool(Tool):
+    name = "web_search"
+    description = """Performs a duckduckgo web search based on your query (think a Google search) then returns the top search results."""
+    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+    output_type = "string"
+
+    def __init__(self, max_results=10, **kwargs):
+        super().__init__()
+        self.max_results = max_results
+        try:
+            from duckduckgo_search import DDGS
+        except ImportError as e:
+            raise ImportError(
+                "You must install package `duckduckgo_search` to run this tool: for instance run `pip install duckduckgo-search`."
+            ) from e
+        self.ddgs = DDGS(**kwargs)
+
+    def _perform_search(self, query: str):
+        """Internal method to perform the actual search."""
+        return self.ddgs.text(query, max_results=self.max_results)
+
+    def forward(self, query: str) -> str:
+        results = []
+        
+        # First attempt with timeout
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            try:
+                future = executor.submit(self._perform_search, query)
+                results = future.result(timeout=30)  # 30 second timeout
+            except TimeoutError:
+                print("First search attempt timed out after 30 seconds, retrying...")
+                results = []
+        
+        # Retry if no results or timeout occurred
+        if len(results) == 0:
+            print("Retrying search...")
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                try:
+                    future = executor.submit(self._perform_search, query)
+                    results = future.result(timeout=30)  # 30 second timeout for retry
+                except TimeoutError:
+                    raise Exception("Search timed out after 30 seconds on both attempts. Try a different query.")
+        
+        # Final check for results
+        if len(results) == 0:
+            raise Exception("No results found after two attempts! Try a less restrictive/shorter query.")
+        
+        postprocessed_results = [f"[{result['title']}]({result['href']})\n{result['body']}" for result in results]
+        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+
+@tool
+def visit_webpage(url: str) -> str:
+    """Visits a webpage at the given URL and returns its content as a markdown string.
+
+    Args:
+        url: The URL of the webpage to visit.
+
+    Returns:
+        The content of the webpage converted to Markdown, or an error message if the request fails.
+    """
+    try:
+        # Send a GET request to the URL
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an exception for bad status codes
+
+        # Parse the content as HTML with BeautifulSoup
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
+        # Extract text and convert to Markdown
+        content = soup.get_text(separator="\n", strip=True)
+        markdown_content = markdownify(content)
+        # Clean up the markdown content
+        markdown_content = re.sub(r'\n+', '\n', markdown_content)  # Remove excessive newlines
+        markdown_content = re.sub(r'\s+', ' ', markdown_content)  # Remove excessive spaces
+        markdown_content = markdown_content.strip()  # Strip leading/trailing whitespace
+        return markdown_content
+
+    except RequestException as e:
+        return f"Error fetching the webpage: {str(e)}"
+    except Exception as e:
+        return f"An unexpected error occurred: {str(e)}"
+    
 
 class BM25RetrieverTool(Tool):
     """
@@ -59,126 +142,6 @@ class BM25RetrieverTool(Tool):
             for i, doc in enumerate(docs)
         ])
 
-
-@tool
-def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
-    """Search for text on the current page via Ctrl + F and jump to the nth occurrence.
-    
-    Args:
-        text: The text string to search for on the webpage
-        nth_result: Which occurrence to jump to (default is 1 for first occurrence)
-        
-    Returns:
-        str: Result of the search operation with match count and navigation status
-    """
-    try:
-        driver = helium.get_driver()
-        elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
-        if nth_result > len(elements):
-            return f"Match n°{nth_result} not found (only {len(elements)} matches found)"
-        result = f"Found {len(elements)} matches for '{text}'."
-        elem = elements[nth_result - 1]
-        driver.execute_script("arguments[0].scrollIntoView(true);", elem)
-        result += f"Focused on element {nth_result} of {len(elements)}"
-        return result
-    except Exception as e:
-        return f"Error searching for text: {e}"
-
-
-@tool
-def go_back() -> str:
-    """Navigate back to the previous page in browser history.
-    
-    Returns:
-        str: Confirmation message or error description
-    """
-    try:
-        driver = helium.get_driver()
-        driver.back()
-        return "Navigated back to previous page"
-    except Exception as e:
-        return f"Error going back: {e}"
-
-
-@tool
-def close_popups() -> str:
-    """Close any visible modal or pop-up on the page by sending ESC key.
-    
-    Returns:
-        str: Confirmation message or error description
-    """
-    try:
-        driver = helium.get_driver()
-        webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-        return "Attempted to close popups"
-    except Exception as e:
-        return f"Error closing popups: {e}"
-
-
-@tool
-def scroll_page(direction: str = "down", amount: int = 3) -> str:
-    """Scroll the webpage in the specified direction.
-    
-    Args:
-        direction: Direction to scroll, either 'up' or 'down'
-        amount: Number of scroll actions to perform
-        
-    Returns:
-        str: Confirmation message or error description
-    """
-    try:
-        driver = helium.get_driver()
-        for _ in range(amount):
-            if direction.lower() == "down":
-                driver.execute_script("window.scrollBy(0, 300);")
-            elif direction.lower() == "up":
-                driver.execute_script("window.scrollBy(0, -300);")
-            sleep(0.5)
-        return f"Scrolled {direction} {amount} times"
-    except Exception as e:
-        return f"Error scrolling: {e}"
-
-
-@tool
-def get_page_text() -> str:
-    """Extract all visible text from the current webpage.
-    
-    Returns:
-        str: The visible text content of the page
-    """
-    try:
-        driver = helium.get_driver()
-        text = driver.find_element(By.TAG_NAME, "body").text
-        return f"Page text (first 2000 chars): {text[:2000]}"
-    except Exception as e:
-        return f"Error getting page text: {e}"
-
-
-def save_screenshot_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
-    """Save screenshots for web browser automation"""
-    try:
-        sleep(1.0)
-        driver = helium.get_driver()
-        if driver is not None:
-            # Clean up old screenshots
-            for previous_memory_step in agent.memory.steps:
-                if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= memory_step.step_number - 2:
-                    previous_memory_step.observations_images = None
-
-            png_bytes = driver.get_screenshot_as_png()
-            image = Image.open(BytesIO(png_bytes))
-            memory_step.observations_images = [image.copy()]
-
-            # Update observations with current URL
-            url_info = f"Current url: {driver.current_url}"
-            memory_step.observations = (
-                url_info if memory_step.observations is None 
-                else memory_step.observations + "\n" + url_info
-            )
-    except Exception as e:
-        print(f"Error in screenshot callback: {e}")
-
-
 class GAIAAgent:
     """
     GAIA agent using smolagents with Gemini 2.0 Flash and Langfuse observability
@@ -200,6 +163,8 @@ class GAIAAgent:
             model_id="gemini-2.0-flash",
             api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=gemini_api_key,
+            temperature=0.0, 
+            top_p=1.0,
         )
 
         # Store user and session IDs for tracking
@@ -207,25 +172,16 @@ class GAIAAgent:
         self.session_id = session_id or "gaia-session"
 
         # GAIA system prompt from the leaderboard
-        self.system_prompt = """You are a general AI assistant. I will ask you a question. Report your thoughts and reasoning process clearly. You should use the available tools to gather information and solve problems step by step.
-
-When using web browser automation:
-- Use helium commands like go_to(), click(), scroll_down()
-- Take screenshots to see what's happening
-- Handle popups and forms appropriately
-- Be patient with page loading
-
-For document retrieval:
-- Use the BM25 retriever when there are text documents attached
-- Search with relevant keywords from the question
-
-Your final answer should be as few words as possible, a number, or a comma-separated list. Don't use articles, abbreviations, or units unless specified."""
+        self.system_prompt = """You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
+        
+        IMPORTANT : 
+        - When you need to find information in a document, use the BM25 retriever tool to search for relevant sections.
+        - When you need to find information in a visited web page, do not use the BM25 retriever tool, but instead use the visit_webpage tool to fetch the content of the page, and then use the retrieved content to answer the question.
+        - In the last step of your reasoning, if you think your reasoning is not able to answer the question, answer the question directy with your internal reasoning, without using the BM25 retriever tool or the visit_webpage tool.
+        """
 
         # Initialize retriever tool (will be updated when documents are loaded)
         self.retriever_tool = BM25RetrieverTool()
-
-        # Initialize web driver for browser automation
-        self.driver = None
 
         # Create the agent
         self.agent = None
@@ -233,6 +189,13 @@ Your final answer should be as few words as possible, a number, or a comma-separ
 
         # Initialize Langfuse client
         self.langfuse = Langfuse()
+
+        from langfuse import get_client
+        self.langfuse = get_client()  # ✅ Use get_client() for v3
+        
+        # Store user and session IDs for tracking
+        self.user_id = user_id or "gaia-user"
+        self.session_id = session_id or "gaia-session"
 
     def _setup_langfuse_observability(self):
         """Set up Langfuse observability with OpenTelemetry"""
@@ -271,48 +234,17 @@ Your final answer should be as few words as possible, a number, or a comma-separ
         """Create the CodeAgent with tools"""
         base_tools = [
             self.retriever_tool, 
-            search_item_ctrl_f, 
-            go_back, 
-            close_popups,
-            scroll_page,
-            get_page_text
+            visit_webpage,
         ]
-
         self.agent = CodeAgent(
-            tools=base_tools,
+            tools=base_tools + [
+                SpeechToTextTool(),
+                WebSearchTool(),
+                PythonInterpreterTool()],
             model=self.model,
-            add_base_tools=True,
-            planning_interval=3,
-            additional_authorized_imports=["helium", "requests", "BeautifulSoup", "json"],
-            step_callbacks=[save_screenshot_callback] if self.driver else [],
-            max_steps=5,
-            description=self.system_prompt,
-            verbosity_level=2,
-        )
+            description=self.system_prompt, 
+            max_steps=6        )
 
-    def initialize_browser(self):
-        """Initialize browser for web automation tasks"""
-        try:
-            chrome_options = webdriver.ChromeOptions()
-            chrome_options.add_argument("--force-device-scale-factor=1")
-            chrome_options.add_argument("--window-size=1000,1350")
-            chrome_options.add_argument("--disable-pdf-viewer")
-            chrome_options.add_argument("--window-position=0,0")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-
-            self.driver = helium.start_chrome(headless=False, options=chrome_options)
-
-            # Recreate agent with browser tools
-            self._create_agent()
-
-            # Import helium for the agent
-            self.agent.python_executor("from helium import *")
-
-            return True
-        except Exception as e:
-            print(f"Failed to initialize browser: {e}")
-            return False
 
     def load_documents_from_file(self, file_path: str):
         """Load and process documents from a file for BM25 retrieval"""
@@ -375,35 +307,22 @@ Your final answer should be as few words as possible, a number, or a comma-separ
         if task_id:
             trace_tags.append(f"task-{task_id}")
 
-        # Start Langfuse trace with OpenTelemetry
-        with self.tracer.start_as_current_span("GAIA-Question-Solving") as span:
+        # Use SDK v3 context manager approach
+        with self.langfuse.start_as_current_span(
+            name="GAIA-Question-Solving",
+            input={"question": question, "task_id": task_id},
+            metadata={
+                "model": self.model.model_id,
+                "question_length": len(question),
+                "has_file": bool(task_id)
+            }
+        ) as span:
             try:
-                # Set span attributes for tracking
-                span.set_attribute("langfuse.user.id", self.user_id)
-                span.set_attribute("langfuse.session.id", self.session_id)
-                span.set_attribute("langfuse.tags", trace_tags)
-                span.set_attribute("gaia.task_id", task_id)
-                span.set_attribute("gaia.question_length", len(question))
-
-                # Get trace ID for Langfuse linking
-                current_span = trace.get_current_span()
-                span_context = current_span.get_span_context()
-                trace_id = span_context.trace_id
-                formatted_trace_id = format_trace_id(trace_id)
-
-                # Create Langfuse trace
-                langfuse_trace = self.langfuse.trace(
-                    id=formatted_trace_id,
-                    name="GAIA Question Solving",
-                    input={"question": question, "task_id": task_id},
+                # Set trace attributes using v3 syntax
+                span.update_trace(
                     user_id=self.user_id,
                     session_id=self.session_id,
-                    tags=trace_tags,
-                    metadata={
-                        "model": self.model.model_id,
-                        "question_length": len(question),
-                        "has_file": bool(task_id)
-                    }
+                    tags=trace_tags
                 )
 
                 # Download and load file if task_id provided
@@ -412,47 +331,22 @@ Your final answer should be as few words as possible, a number, or a comma-separ
                     file_path = self.download_gaia_file(task_id)
                     if file_path:
                         file_loaded = self.load_documents_from_file(file_path)
-                        span.set_attribute("gaia.file_loaded", file_loaded)
                         print(f"Loaded file for task {task_id}")
-
-                # Check if this requires web browsing
-                web_indicators = ["navigate", "browser", "website", "webpage", "url", "click", "search on"]
-                needs_browser = any(indicator in question.lower() for indicator in web_indicators)
-                span.set_attribute("gaia.needs_browser", needs_browser)
-
-                if needs_browser and not self.driver:
-                    print("Initializing browser for web automation...")
-                    browser_initialized = self.initialize_browser()
-                    span.set_attribute("gaia.browser_initialized", browser_initialized)
 
                 # Prepare the prompt
                 prompt = f"""
-Question: {question}
-{f'Task ID: {task_id}' if task_id else ''}
-{f'File loaded: Yes' if file_loaded else 'File loaded: No'}
+    Question: {question}
+    {f'Task ID: {task_id}' if task_id else ''}
+    {f'File loaded: Yes' if file_loaded else 'File loaded: No'}
 
-Solve this step by step. Use the available tools to gather information and provide a precise answer.
                 """
-
-                if needs_browser:
-                    prompt += "\n" + helium_instructions
 
                 print("=== AGENT REASONING ===")
                 result = self.agent.run(prompt)
                 print("=== END REASONING ===")
 
-                # Update Langfuse trace with result
-                langfuse_trace.update(
-                    output={"answer": str(result)},
-                    end_time=None  # Will be set automatically
-                )
-
-                # Add success attributes
-                span.set_attribute("gaia.success", True)
-                span.set_attribute("gaia.answer_length", len(str(result)))
-
-                # Flush Langfuse data
-                self.langfuse.flush()
+                # Update span with result using v3 syntax
+                span.update(output={"answer": str(result)})
 
                 return str(result)
 
@@ -460,26 +354,14 @@ Solve this step by step. Use the available tools to gather information and provi
                 error_msg = f"Error processing question: {str(e)}"
                 print(error_msg)
                 
-                # Log error to span and Langfuse
-                span.set_attribute("gaia.success", False)
-                span.set_attribute("gaia.error", str(e))
+                # Log error using v3 syntax
+                span.update(
+                    output={"error": error_msg},
+                    level="ERROR"
+                )
                 
-                if 'langfuse_trace' in locals():
-                    langfuse_trace.update(
-                        output={"error": error_msg},
-                        level="ERROR"
-                    )
-                
-                self.langfuse.flush()
                 return error_msg
-                
-            finally:
-                # Clean up browser if initialized
-                if self.driver:
-                    try:
-                        helium.kill_browser()
-                    except:
-                        pass
+
 
     def evaluate_answer(self, question: str, answer: str, expected_answer: str = None) -> Dict[str, Any]:
         """
@@ -506,28 +388,19 @@ Provide your rating as JSON: {{"accuracy": X, "completeness": Y, "clarity": Z, "
             
             # Try to parse JSON response
             import json
-            try:
-                scores = json.loads(evaluation_result)
-                return scores
-            except:
-                # Fallback if JSON parsing fails
-                return {
-                    "accuracy": 3,
-                    "completeness": 3,
-                    "clarity": 3,
-                    "overall": 3,
-                    "reasoning": "Could not parse evaluation response",
-                    "raw_evaluation": evaluation_result
-                }
-                
-        except Exception as e:
+            scores = json.loads(evaluation_result)
+            return scores
+        except json.JSONDecodeError:
+            # If JSON parsing fails, return a default structure
+            print("Failed to parse evaluation result as JSON. Returning default scores.")
             return {
-                "accuracy": 1,
-                "completeness": 1,
-                "clarity": 1,
-                "overall": 1,
-                "reasoning": f"Evaluation failed: {str(e)}"
+                "accuracy": 0,
+                "completeness": 0,
+                "clarity": 0,
+                "overall": 0,
+                "reasoning": "Could not parse evaluation result"
             }
+
 
     def add_user_feedback(self, trace_id: str, feedback_score: int, comment: str = None):
         """
@@ -566,7 +439,7 @@ if __name__ == "__main__":
 
     # Example question
     question_data = {
-        "Question": "How many studio albums Mercedes Sosa has published between 2000-2009?",
+        "Question": "How many studio albums Mercedes Sosa has published between 2000-2009? Search on the English Wikipedia webpage.",
         "task_id": ""
     }
 
@@ -576,10 +449,3 @@ if __name__ == "__main__":
         tags=["music-question", "discography"]
     )
     print(f"Answer: {answer}")
-
-    # Evaluate the answer
-    evaluation = agent.evaluate_answer(
-        question_data["Question"], 
-        answer
-    )
-    print(f"Evaluation: {evaluation}")
