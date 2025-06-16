@@ -229,11 +229,11 @@ Your final answer should be as few words as possible, a number, or a comma-separ
             tools=base_tools,
             model=self.model,
             add_base_tools=True,  # Adds web search, python execution, etc.
-            planning_interval=5,  # Plan every 5 steps
+            planning_interval=2,  # Plan every 2 steps
             additional_authorized_imports=["helium", "requests", "BeautifulSoup", "json"],
             step_callbacks=[save_screenshot_callback] if self.driver else [],
-            max_steps=20,
-            system_prompt=self.system_prompt,
+            max_steps=10,
+            description=self.system_prompt,
             verbosity_level=2,
         )
 
