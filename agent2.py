@@ -127,9 +127,9 @@ class GAIAAgent:
         """Initialize the agent with Gemini 2.0 Flash and tools"""
 
         # Get Gemini API key
-        gemini_api_key = os.environ.get("GEMINI_API_KEY")
+        gemini_api_key = os.environ.get("GOOGLE_API_KEY")
         if not gemini_api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not found")
+            raise ValueError("GOOGLE_API_KEY environment variable not found")
 
         # Initialize Gemini 2.0 Flash model
         self.model = OpenAIServerModel(
