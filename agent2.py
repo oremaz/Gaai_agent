@@ -236,6 +236,8 @@ Your final answer should be as few words as possible, a number, or a comma-separ
             description=self.system_prompt,
             verbosity_level=2,
         )
+        self.agent.tools = [tool for tool in self.agent.tools 
+                   if not isinstance(tool, DuckDuckGoSearchTool)]
 
     def initialize_browser(self):
         """Initialize browser for web automation tasks"""
