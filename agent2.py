@@ -50,123 +50,123 @@ class BM25RetrieverTool(Tool):
         ])
 
 
-    @tool
-    def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
-        """Search for text on the current page via Ctrl + F and jump to the nth occurrence.
+@tool
+def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
+    """Search for text on the current page via Ctrl + F and jump to the nth occurrence.
+    
+    Args:
+        text: The text string to search for on the webpage
+        nth_result: Which occurrence to jump to (default is 1 for first occurrence)
         
-        Args:
-            text: The text string to search for on the webpage
-            nth_result: Which occurrence to jump to (default is 1 for first occurrence)
-            
-        Returns:
-            str: Result of the search operation with match count and navigation status
-        """
-        try:
-            driver = helium.get_driver()
-            elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
-            if nth_result > len(elements):
-                return f"Match n°{nth_result} not found (only {len(elements)} matches found)"
-            result = f"Found {len(elements)} matches for '{text}'."
-            elem = elements[nth_result - 1]
-            driver.execute_script("arguments[0].scrollIntoView(true);", elem)
-            result += f"Focused on element {nth_result} of {len(elements)}"
-            return result
-        except Exception as e:
-            return f"Error searching for text: {e}"
-    
-    
-    @tool
-    def go_back() -> str:
-        """Navigate back to the previous page in browser history.
-        
-        Returns:
-            str: Confirmation message or error description
-        """
-        try:
-            driver = helium.get_driver()
-            driver.back()
-            return "Navigated back to previous page"
-        except Exception as e:
-            return f"Error going back: {e}"
-    
-    
-    @tool
-    def close_popups() -> str:
-        """Close any visible modal or pop-up on the page by sending ESC key.
-        
-        Returns:
-            str: Confirmation message or error description
-        """
-        try:
-            driver = helium.get_driver()
-            webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
-            return "Attempted to close popups"
-        except Exception as e:
-            return f"Error closing popups: {e}"
-    
-    
-    @tool
-    def scroll_page(direction: str = "down", amount: int = 3) -> str:
-        """Scroll the webpage in the specified direction.
-        
-        Args:
-            direction: Direction to scroll, either 'up' or 'down'
-            amount: Number of scroll actions to perform
-            
-        Returns:
-            str: Confirmation message or error description
-        """
-        try:
-            driver = helium.get_driver()
-            for _ in range(amount):
-                if direction.lower() == "down":
-                    driver.execute_script("window.scrollBy(0, 300);")
-                elif direction.lower() == "up":
-                    driver.execute_script("window.scrollBy(0, -300);")
-                sleep(0.5)
-            return f"Scrolled {direction} {amount} times"
-        except Exception as e:
-            return f"Error scrolling: {e}"
-    
-    
-    @tool
-    def get_page_text() -> str:
-        """Extract all visible text from the current webpage.
-        
-        Returns:
-            str: The visible text content of the page
-        """
-        try:
-            driver = helium.get_driver()
-            text = driver.find_element(By.TAG_NAME, "body").text
-            return f"Page text (first 2000 chars): {text[:2000]}"
-        except Exception as e:
-            return f"Error getting page text: {e}"
+    Returns:
+        str: Result of the search operation with match count and navigation status
+    """
+    try:
+        driver = helium.get_driver()
+        elements = driver.find_elements(By.XPATH, f"//*[contains(text(), '{text}')]")
+        if nth_result > len(elements):
+            return f"Match n°{nth_result} not found (only {len(elements)} matches found)"
+        result = f"Found {len(elements)} matches for '{text}'."
+        elem = elements[nth_result - 1]
+        driver.execute_script("arguments[0].scrollIntoView(true);", elem)
+        result += f"Focused on element {nth_result} of {len(elements)}"
+        return result
+    except Exception as e:
+        return f"Error searching for text: {e}"
 
 
-    def save_screenshot_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
-        """Save screenshots for web browser automation"""
-        try:
-            sleep(1.0)
-            driver = helium.get_driver()
-            if driver is not None:
-                # Clean up old screenshots
-                for previous_memory_step in agent.memory.steps:
-                    if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= memory_step.step_number - 2:
-                        previous_memory_step.observations_images = None
+@tool
+def go_back() -> str:
+    """Navigate back to the previous page in browser history.
     
-                png_bytes = driver.get_screenshot_as_png()
-                image = Image.open(BytesIO(png_bytes))
-                memory_step.observations_images = [image.copy()]
+    Returns:
+        str: Confirmation message or error description
+    """
+    try:
+        driver = helium.get_driver()
+        driver.back()
+        return "Navigated back to previous page"
+    except Exception as e:
+        return f"Error going back: {e}"
+
+
+@tool
+def close_popups() -> str:
+    """Close any visible modal or pop-up on the page by sending ESC key.
     
-                # Update observations with current URL
-                url_info = f"Current url: {driver.current_url}"
-                memory_step.observations = (
-                    url_info if memory_step.observations is None 
-                    else memory_step.observations + "\n" + url_info
-                )
-        except Exception as e:
-            print(f"Error in screenshot callback: {e}")
+    Returns:
+        str: Confirmation message or error description
+    """
+    try:
+        driver = helium.get_driver()
+        webdriver.ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+        return "Attempted to close popups"
+    except Exception as e:
+        return f"Error closing popups: {e}"
+
+
+@tool
+def scroll_page(direction: str = "down", amount: int = 3) -> str:
+    """Scroll the webpage in the specified direction.
+    
+    Args:
+        direction: Direction to scroll, either 'up' or 'down'
+        amount: Number of scroll actions to perform
+        
+    Returns:
+        str: Confirmation message or error description
+    """
+    try:
+        driver = helium.get_driver()
+        for _ in range(amount):
+            if direction.lower() == "down":
+                driver.execute_script("window.scrollBy(0, 300);")
+            elif direction.lower() == "up":
+                driver.execute_script("window.scrollBy(0, -300);")
+            sleep(0.5)
+        return f"Scrolled {direction} {amount} times"
+    except Exception as e:
+        return f"Error scrolling: {e}"
+
+
+@tool
+def get_page_text() -> str:
+    """Extract all visible text from the current webpage.
+    
+    Returns:
+        str: The visible text content of the page
+    """
+    try:
+        driver = helium.get_driver()
+        text = driver.find_element(By.TAG_NAME, "body").text
+        return f"Page text (first 2000 chars): {text[:2000]}"
+    except Exception as e:
+        return f"Error getting page text: {e}"
+
+
+def save_screenshot_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
+    """Save screenshots for web browser automation"""
+    try:
+        sleep(1.0)
+        driver = helium.get_driver()
+        if driver is not None:
+            # Clean up old screenshots
+            for previous_memory_step in agent.memory.steps:
+                if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= memory_step.step_number - 2:
+                    previous_memory_step.observations_images = None
+
+            png_bytes = driver.get_screenshot_as_png()
+            image = Image.open(BytesIO(png_bytes))
+            memory_step.observations_images = [image.copy()]
+
+            # Update observations with current URL
+            url_info = f"Current url: {driver.current_url}"
+            memory_step.observations = (
+                url_info if memory_step.observations is None 
+                else memory_step.observations + "\n" + url_info
+            )
+    except Exception as e:
+        print(f"Error in screenshot callback: {e}")
 
 
 class GAIAAgent:
