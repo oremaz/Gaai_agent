@@ -15,7 +15,6 @@ import helium
 from PIL import Image
 from io import BytesIO
 from time import sleep
-from smolagents import PythonInterpreterTool, SpeechToTextTool
 
 # Langfuse observability imports
 from opentelemetry.sdk.trace import TracerProvider
@@ -280,10 +279,10 @@ Your final answer should be as few words as possible, a number, or a comma-separ
         ]
 
         self.agent = CodeAgent(
-            tools=base_tools + [PythonInterpreterTool(), SpeechToTextTool()],
+            tools=base_tools,
             model=self.model,
-            add_base_tools=False,
-            planning_interval=2,
+            add_base_tools=True,
+            planning_interval=3,
             additional_authorized_imports=["helium", "requests", "BeautifulSoup", "json"],
             step_callbacks=[save_screenshot_callback] if self.driver else [],
             max_steps=10,
