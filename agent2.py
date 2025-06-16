@@ -285,7 +285,7 @@ Your final answer should be as few words as possible, a number, or a comma-separ
             planning_interval=3,
             additional_authorized_imports=["helium", "requests", "BeautifulSoup", "json"],
             step_callbacks=[save_screenshot_callback] if self.driver else [],
-            max_steps=10,
+            max_steps=5,
             description=self.system_prompt,
             verbosity_level=2,
         )
