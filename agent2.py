@@ -144,29 +144,29 @@ class BM25RetrieverTool(Tool):
             return f"Error getting page text: {e}"
 
 
-def save_screenshot_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
-    """Save screenshots for web browser automation"""
-    try:
-        sleep(1.0)
-        driver = helium.get_driver()
-        if driver is not None:
-            # Clean up old screenshots
-            for previous_memory_step in agent.memory.steps:
-                if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= memory_step.step_number - 2:
-                    previous_memory_step.observations_images = None
-
-            png_bytes = driver.get_screenshot_as_png()
-            image = Image.open(BytesIO(png_bytes))
-            memory_step.observations_images = [image.copy()]
-
-            # Update observations with current URL
-            url_info = f"Current url: {driver.current_url}"
-            memory_step.observations = (
-                url_info if memory_step.observations is None 
-                else memory_step.observations + "\n" + url_info
-            )
-    except Exception as e:
-        print(f"Error in screenshot callback: {e}")
+    def save_screenshot_callback(memory_step: ActionStep, agent: CodeAgent) -> None:
+        """Save screenshots for web browser automation"""
+        try:
+            sleep(1.0)
+            driver = helium.get_driver()
+            if driver is not None:
+                # Clean up old screenshots
+                for previous_memory_step in agent.memory.steps:
+                    if isinstance(previous_memory_step, ActionStep) and previous_memory_step.step_number <= memory_step.step_number - 2:
+                        previous_memory_step.observations_images = None
+    
+                png_bytes = driver.get_screenshot_as_png()
+                image = Image.open(BytesIO(png_bytes))
+                memory_step.observations_images = [image.copy()]
+    
+                # Update observations with current URL
+                url_info = f"Current url: {driver.current_url}"
+                memory_step.observations = (
+                    url_info if memory_step.observations is None 
+                    else memory_step.observations + "\n" + url_info
+                )
+        except Exception as e:
+            print(f"Error in screenshot callback: {e}")
 
 
 class GAIAAgent:
