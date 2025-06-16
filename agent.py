@@ -210,7 +210,7 @@ def initialize_models(use_api_mode=False):
                 
                 def __init__(self, model_name: str = "clip-ViT-B-32", **kwargs: Any) -> None:
                     super().__init__(**kwargs)
-                    self._model = SentenceTransformer(model_name, max_position_embeddings=1024)
+                    self._model = SentenceTransformer(model_name)
                     
                 @classmethod
                 def class_name(cls) -> str:
@@ -256,6 +256,7 @@ def initialize_models(use_api_mode=False):
 
 
             embed_model = MultimodalCLIPEmbedding()
+            embed_model.max_seq_length = 1024
             # Code LLM
             code_llm = HuggingFaceLLM(
                 model_name="Qwen/Qwen2.5-Coder-3B-Instruct",
