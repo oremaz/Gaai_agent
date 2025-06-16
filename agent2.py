@@ -14,6 +14,7 @@ import helium
 from PIL import Image
 from io import BytesIO
 from time import sleep
+from smolagents import DuckDuckGoSearchTool
 
 
 class BM25RetrieverTool(Tool):
@@ -238,6 +239,7 @@ Your final answer should be as few words as possible, a number, or a comma-separ
         )
         self.agent.tools = [tool for tool in self.agent.tools 
                    if not isinstance(tool, DuckDuckGoSearchTool)]
+        print(self.agent.tools)
 
     def initialize_browser(self):
         """Initialize browser for web automation tasks"""
