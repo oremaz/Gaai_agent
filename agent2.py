@@ -15,7 +15,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry import trace
 from langfuse import Langfuse
-from smolagents import SpeechToTextTool, PythonInterpreterTool
+from smolagents import PythonInterpreterTool, FinalAnswerTool
 
 
 import requests
@@ -173,12 +173,10 @@ class GAIAAgent:
 
         # GAIA system prompt from the leaderboard
         self.system_prompt = """You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
-        
-        IMPORTANT : 
-        - When you need to find information in a document, use the BM25 retriever tool to search for relevant sections.
-        - When you need to find information in a visited web page, do not use the BM25 retriever tool, but instead use the visit_webpage tool to fetch the content of the page, and then use the retrieved content to answer the question.
-        - In the last step of your reasoning, if you think your reasoning is not able to answer the question, answer the question directy with your internal reasoning, without using the BM25 retriever tool or the visit_webpage tool.
-        """
+                IMPORTANT:
+                - In the last step of your reasoning, if you think your reasoning is not able to answer the question, answer the question directy with your internal reasoning, without using the BM25 retriever tool or the visit_webpage tool.
+                - Always use the final_answer tool to return your final answer, even if you think you can answer the question without using the tools.
+                """
 
         # Initialize retriever tool (will be updated when documents are loaded)
         self.retriever_tool = BM25RetrieverTool()
@@ -238,12 +236,21 @@ class GAIAAgent:
         ]
         self.agent = CodeAgent(
             tools=base_tools + [
-                SpeechToTextTool(),
                 WebSearchTool(),
-                PythonInterpreterTool()],
+                PythonInterpreterTool(),
+                FinalAnswerTool()],
             model=self.model,
             description=self.system_prompt, 
-            max_steps=6        )
+            max_steps=5, 
+            additional_authorized_imports = [
+    "math",             # basic calculations
+    "statistics",       # common numeric helpers
+    "itertools",        # safe functional helpers
+    "datetime",         # date handling
+    "random",           # simple randomness (no os access)
+    "re",               # regular expressions
+    "json",             # serialisation / parsing
+]       )
 
 
     def load_documents_from_file(self, file_path: str):
